@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 Minutes (180,000 ms)
+const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 Minutes (120,000 ms)
 
 export function AutoLogoutListener() {
   const router = useRouter();
@@ -18,7 +18,7 @@ export function AutoLogoutListener() {
       // Ignore network errors
     }
     toast.error(
-      '🔒 Sesi Berakhir: Anda telah otomatis ter-logout dari aplikasi karena tidak ada aktivitas selama 3 menit.',
+      '🔒 Sesi Berakhir: Anda telah otomatis ter-logout dari aplikasi karena tidak ada aktivitas selama 2 menit.',
       { duration: 7000 }
     );
     router.push('/login?reason=inactivity');
