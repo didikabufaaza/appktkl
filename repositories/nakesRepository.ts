@@ -13,120 +13,81 @@ let lastCacheTime = 0;
 
 export class NakesRepository {
   /**
-   * Reads raw member rows from Google Spreadsheet (or Fallback GViz JSON)
+   * Reads member rows directly from Google Spreadsheet "Form Responses 1"
    * merges local overrides and returns structured NakesMember array.
    */
   static async getAllNakes(forceRefresh = false): Promise<NakesMember[]> {
     const now = Date.now();
-    // Cache for 3 seconds to ensure real-time updates while keeping performance
+    // Cache for 3 seconds to ensure real-time updates while maintaining high performance
     if (!forceRefresh && localMembersCache && now - lastCacheTime < 3000) {
       return localMembersCache;
     }
 
     try {
-      let rows4: any[][] = [];
       let rows1: any[][] = [];
 
       const sheets = getSheetsClient();
       if (sheets) {
         try {
-          const res4 = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "'Form Responses 4'!A:W",
-          });
-          rows4 = res4.data.values || [];
-
           const res1 = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: "'Form Responses 1'!A:Z",
+            range: "'Form Responses 1'!A:W",
           });
           rows1 = res1.data.values || [];
         } catch (apiErr) {
-          console.warn('Google Sheets API error, falling back to public gviz fetch:', apiErr);
-          rows4 = await fetchPublicSheetData('Form Responses 4');
+          console.warn('Google Sheets API error, falling back to public gviz fetch for Form Responses 1:', apiErr);
           rows1 = await fetchPublicSheetData('Form Responses 1');
         }
       } else {
-        rows4 = await fetchPublicSheetData('Form Responses 4');
         rows1 = await fetchPublicSheetData('Form Responses 1');
       }
 
-      // Map additional fields from Form Responses 1
-      const map1 = new Map<string, any>();
-      if (rows1 && rows1.length > 1) {
-        const dataRows1 = rows1.slice(1);
-        dataRows1.forEach((r) => {
-          const email = String(r[1] || '').trim().toLowerCase();
-          const nama = String(r[2] || '').trim().toLowerCase();
-          const val = {
-            tglPermohonan: r[4] || '',
-            lampiran: r[5] || '',
-            perihal: r[6] || '',
-            ttl: r[7] || '',
-            statusKepegawaian: r[8] || '',
-            alamatKtp: r[9] || '',
-            alamatTinggal: r[10] || '',
-            pendidikan: r[11] || '',
-            profesi: r[12] || '',
-            alumni: r[13] || '',
-            photo: r[14] || '',
-            masaHabisSip: r[15] || '',
-            tahunMasukRSUD: r[16] || '',
-            berkasPdf: r[17] || '',
-          };
-          if (email) map1.set(email, val);
-          if (nama) map1.set(nama, val);
-        });
-      }
-
-      if (!rows4 || rows4.length < 2) {
+      if (!rows1 || rows1.length < 2) {
         return [];
       }
 
-      const dataRows4 = rows4.slice(1);
-      let baseMembers: NakesMember[] = dataRows4
-        .filter((row) => row && row[2] && String(row[2]).trim() !== '')
+      const dataRows = rows1.slice(1);
+      let baseMembers: NakesMember[] = dataRows
+        .filter((row) => row && (row[2] || row[1])) // Must have name or email
         .map((row, index) => {
           const nama = String(row[2] || '').trim();
-          const email = String(row[3] || row[1] || '').trim();
+          const email = String(row[1] || '').trim();
+          const profesi = String(row[8] || 'ATLM').trim();
+          const pendidikan = String(row[6] || 'DIII').trim();
+          const status = String(row[13] || 'PNS').trim();
 
-          const match1 = map1.get(email.toLowerCase()) || map1.get(nama.toLowerCase()) || {};
-
-          const profesi = String(row[11] || row[8] || match1.profesi || 'ATLM').trim();
-          const pendidikan = String(row[10] || match1.pendidikan || 'DIII').trim();
-          const status = String(match1.statusKepegawaian || row[8] || 'PNS').trim();
-
-          const tglPermohonan = formatDateString(row[4]) || formatDateString(match1.tglPermohonan) || '';
-          const perihal = String(row[6] || match1.perihal || '').trim();
-          const sipExpDate = formatDateString(row[19]) || formatDateString(match1.masaHabisSip) || '';
-          const tahunMasukRSUD = formatDateString(row[20]) || formatDateString(match1.tahunMasukRSUD) || '';
-          const berkasUrl = String(match1.berkasPdf || row[21] || '').trim();
+          const tglPermohonan = formatDateString(row[17]) || '';
+          const perihal = String(row[19] || '').trim();
+          const sipExpDate = formatDateString(row[16]) || '';
+          const tahunMasukRSUD = formatDateString(row[11]) || '';
+          const berkasUrl = String(row[9] || '').trim();
+          const photo = String(row[10] || '').trim();
           const masaKerja = calculateMasaKerja(tahunMasukRSUD);
           const waktuRekredensialKembali = addThreeYears(tglPermohonan);
+          const nomorAnggota = String(row[22] || row[14] || `KTKL-${String(index + 1).padStart(3, '0')}/RSUD/${new Date().getFullYear()}`).trim();
 
           return {
             id: String(index + 1),
             timestamp: formatDateString(row[0]) || '',
-            emailAddress: row[1] || email,
+            emailAddress: email,
             namaLengkap: nama,
             email: email,
-            tglPermohonan: tglPermohonan,
-            lampiran: row[5] || match1.lampiran || '',
-            perihal: perihal,
-            tanggalLahir: row[7] || match1.ttl || '',
-            statusKepegawaian: status,
-            alamat: row[9] || match1.alamatTinggal || match1.alamatKtp || '',
+            tanggalLahir: String(row[3] || '').trim(),
+            alamat: String(row[5] || row[4] || '').trim(),
             pendidikan: pendidikan,
             profesi: profesi,
-            asalPendidikan: row[12] || match1.alumni || '',
-            photo: row[13] || match1.photo || '',
-            qr: row[14] || '',
-            nomorSurat: row[15] || '',
-            deskripsi: row[16] || '',
-            nomorAnggota: row[17] || `KTKL-${String(index + 1).padStart(3, '0')}/RSUD/${new Date().getFullYear()}`,
-            linkPhoto: row[18] || '',
+            asalPendidikan: String(row[12] || '').trim(),
+            statusKepegawaian: status,
+            photo: photo,
+            linkPhoto: photo,
             sipExpDate: sipExpDate,
             tahunMasukRSUD: tahunMasukRSUD,
+            tglPermohonan: tglPermohonan,
+            lampiran: String(row[18] || '').trim(),
+            perihal: perihal,
+            qr: String(row[20] || '').trim(),
+            deskripsi: String(row[21] || '').trim(),
+            nomorAnggota: nomorAnggota,
             berkasUrl: berkasUrl,
             strUrl: berkasUrl,
             sipUrl: berkasUrl,
@@ -134,7 +95,7 @@ export class NakesRepository {
             sertifikatUrl: berkasUrl,
             mergedDocUrl: berkasUrl,
             linkMergedDoc: berkasUrl,
-            docMergeStatus: row[22] || 'Active',
+            docMergeStatus: 'Active',
             masaKerja: masaKerja,
             waktuRekredensialKembali: waktuRekredensialKembali,
           };
@@ -178,7 +139,7 @@ export class NakesRepository {
       lastCacheTime = now;
       return baseMembers;
     } catch (err) {
-      console.error('Error fetching Nakes member data:', err);
+      console.error('Error fetching Nakes member data from Form Responses 1:', err);
       return localMembersCache || [];
     }
   }
@@ -206,29 +167,29 @@ export class NakesRepository {
     saveMemberAddition(newMember);
 
     const rowValue = [
-      newMember.timestamp,
-      newMember.emailAddress || newMember.email,
-      newMember.namaLengkap,
-      newMember.email,
-      newMember.tglPermohonan || new Date().toLocaleDateString('id-ID'),
-      newMember.lampiran || '1 Berkas',
-      newMember.perihal || 'Permohonan Kredensial Baru',
-      newMember.tanggalLahir,
-      newMember.statusKepegawaian,
-      newMember.alamat,
-      newMember.pendidikan,
-      newMember.profesi,
-      newMember.asalPendidikan || '',
-      newMember.photo || '',
-      newMember.qr || '',
-      newMember.nomorSurat || '',
-      newMember.deskripsi || '',
-      newMember.nomorAnggota,
-      newMember.linkPhoto || '',
-      newMember.sipExpDate || '',
-      newMember.tahunMasukRSUD || '',
-      newMember.berkasUrl || newMember.strUrl || '',
-      'Active',
+      newMember.timestamp,                                        // 0: Timestamp
+      newMember.emailAddress || newMember.email,                  // 1: Email Address
+      newMember.namaLengkap,                                      // 2: Nama Lengkap
+      newMember.tanggalLahir || '',                               // 3: Tanggal Lahir
+      newMember.alamat || '',                                     // 4: Alamat KTP
+      newMember.alamat || '',                                     // 5: Alamat Tempat Tinggal
+      newMember.pendidikan || '',                                 // 6: Pendidikan Terakhir
+      '',                                                         // 7: Tahun Lulus
+      newMember.profesi || '',                                    // 8: Profesi
+      newMember.berkasUrl || newMember.strUrl || '',              // 9: Upload dokumen PDF
+      newMember.photo || newMember.linkPhoto || '',               // 10: PHOTO
+      newMember.tahunMasukRSUD || '',                             // 11: Tahun Masuk RSUD
+      newMember.asalPendidikan || '',                             // 12: Alumni/Universitas
+      newMember.statusKepegawaian || '',                          // 13: Status Kepegawaian
+      newMember.nomorAnggota || '',                               // 14: NIP
+      '',                                                         // 15: Nomor Hp
+      newMember.sipExpDate || '',                                 // 16: Masa Habis SIP
+      newMember.tglPermohonan || '',                              // 17: Tanggal Permohonan
+      newMember.lampiran || '1 Berkas',                           // 18: Lampiran
+      newMember.perihal || 'Permohonan Kredensial',               // 19: Perihal
+      newMember.qr || '',                                         // 20: QR
+      newMember.deskripsi || '',                                  // 21: DESKRIPSI
+      newMember.nomorAnggota || '',                               // 22: NOMOR ANGGOTA
     ];
 
     // 1. Try Google Sheets API v4
@@ -237,12 +198,12 @@ export class NakesRepository {
       try {
         await sheets.spreadsheets.values.append({
           spreadsheetId: SPREADSHEET_ID,
-          range: "'Form Responses 4'!A:W",
+          range: "'Form Responses 1'!A:W",
           valueInputOption: 'USER_ENTERED',
           requestBody: { values: [rowValue] },
         });
       } catch (err) {
-        console.error('Failed to append row to Google Sheets via API:', err);
+        console.error('Failed to append row to Google Sheets Form Responses 1 via API:', err);
       }
     }
 
@@ -253,7 +214,7 @@ export class NakesRepository {
         await fetch(scriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create', spreadsheetId: SPREADSHEET_ID, rowValue }),
+          body: JSON.stringify({ action: 'create', spreadsheetId: SPREADSHEET_ID, sheetName: 'Form Responses 1', rowValue }),
         });
       } catch (scriptErr) {
         console.error('Google Apps Script create error:', scriptErr);
@@ -285,29 +246,29 @@ export class NakesRepository {
     const rowIndex = !isNaN(numericId) && numericId > 0 ? numericId + 1 : index + 2;
 
     const rowValue = [
-      updated.timestamp || '',
-      updated.emailAddress || updated.email || '',
-      updated.namaLengkap || '',
-      updated.email || '',
-      updated.tglPermohonan || '',
-      updated.lampiran || '',
-      updated.perihal || '',
-      updated.tanggalLahir || '',
-      updated.statusKepegawaian || '',
-      updated.alamat || '',
-      updated.pendidikan || '',
-      updated.profesi || '',
-      updated.asalPendidikan || '',
-      updated.photo || '',
-      updated.qr || '',
-      updated.nomorSurat || '',
-      updated.deskripsi || '',
-      updated.nomorAnggota || '',
-      updated.linkPhoto || '',
-      updated.sipExpDate || '',
-      updated.tahunMasukRSUD || '',
-      updated.berkasUrl || updated.strUrl || '',
-      updated.docMergeStatus || 'Active',
+      updated.timestamp || '',                                    // 0: Timestamp
+      updated.emailAddress || updated.email || '',                // 1: Email Address
+      updated.namaLengkap || '',                                 // 2: Nama Lengkap
+      updated.tanggalLahir || '',                                // 3: Tanggal Lahir
+      updated.alamat || '',                                      // 4: Alamat KTP
+      updated.alamat || '',                                      // 5: Alamat Tempat Tinggal
+      updated.pendidikan || '',                                  // 6: Pendidikan Terakhir
+      '',                                                         // 7: Tahun Lulus
+      updated.profesi || '',                                     // 8: Profesi
+      updated.berkasUrl || updated.strUrl || '',                  // 9: Upload dokumen PDF
+      updated.photo || updated.linkPhoto || '',                   // 10: PHOTO
+      updated.tahunMasukRSUD || '',                              // 11: Tahun Masuk RSUD
+      updated.asalPendidikan || '',                              // 12: Alumni/Universitas
+      updated.statusKepegawaian || '',                           // 13: Status Kepegawaian
+      updated.nomorAnggota || '',                                // 14: NIP
+      '',                                                         // 15: Nomor Hp
+      updated.sipExpDate || '',                                  // 16: Masa Habis SIP
+      updated.tglPermohonan || '',                               // 17: Tanggal Permohonan
+      updated.lampiran || '',                                    // 18: Lampiran
+      updated.perihal || '',                                     // 19: Perihal
+      updated.qr || '',                                          // 20: QR
+      updated.deskripsi || '',                                   // 21: DESKRIPSI
+      updated.nomorAnggota || '',                                // 22: NOMOR ANGGOTA
     ];
 
     // 1. Try Google Sheets API v4
@@ -316,13 +277,13 @@ export class NakesRepository {
       try {
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID,
-          range: `'Form Responses 4'!A${rowIndex}:W${rowIndex}`,
+          range: `'Form Responses 1'!A${rowIndex}:W${rowIndex}`,
           valueInputOption: 'USER_ENTERED',
           requestBody: { values: [rowValue] },
         });
-        console.log(`✅ Row ${rowIndex} successfully updated in Google Sheets via API!`);
+        console.log(`✅ Row ${rowIndex} successfully updated in Form Responses 1 via API!`);
       } catch (err) {
-        console.error('Failed to update row in Google Sheets via API:', err);
+        console.error('Failed to update row in Google Sheets Form Responses 1 via API:', err);
       }
     }
 
@@ -336,7 +297,7 @@ export class NakesRepository {
           body: JSON.stringify({
             action: 'update',
             spreadsheetId: SPREADSHEET_ID,
-            sheetName: 'Form Responses 4',
+            sheetName: 'Form Responses 1',
             rowIndex,
             rowValue,
           }),
