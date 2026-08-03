@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Navbar } from '@/components/layout/Navbar';
+import { AutoLogoutListener } from '@/components/layout/AutoLogoutListener';
 import { Toaster } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserSession } from '@/types/nakes';
@@ -62,6 +63,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans antialiased">
       <Toaster position="top-right" theme="dark" richColors />
+      <AutoLogoutListener />
       <Sidebar userSession={userSession} onLogout={handleLogout} />
 
       <div className="flex-1 flex flex-col min-w-0">
