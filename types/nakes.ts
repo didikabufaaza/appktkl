@@ -9,6 +9,7 @@ export interface NakesMember {
   perihal?: string;
   tanggalLahir: string;
   statusKepegawaian: string;
+  nip?: string;
   alamat: string;
   pendidikan: string;
   profesi: string;

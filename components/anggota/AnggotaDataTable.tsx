@@ -205,6 +205,19 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
         },
       },
       {
+        accessorKey: 'nip',
+        header: 'NIP',
+        cell: (info) => {
+          const val = String(info.getValue() || info.row.original.nomorAnggota || '').trim();
+          if (!val || val === '0') return <span className="text-slate-500 text-xs italic">-</span>;
+          return (
+            <span className="font-mono text-xs text-slate-200 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/60 font-semibold">
+              {val}
+            </span>
+          );
+        },
+      },
+      {
         accessorKey: 'profesi',
         header: ({ column }) => (
           <button

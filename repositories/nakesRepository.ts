@@ -64,6 +64,7 @@ export class NakesRepository {
           const photo = String(row[10] || '').trim();
           const masaKerja = calculateMasaKerja(tahunMasukRSUD);
           const waktuRekredensialKembali = addThreeYears(tglPermohonan);
+          const nip = String(row[14] || '').trim();
           const nomorAnggota = String(row[22] || row[14] || `KTKL-${String(index + 1).padStart(3, '0')}/RSUD/${new Date().getFullYear()}`).trim();
 
           return {
@@ -78,6 +79,7 @@ export class NakesRepository {
             profesi: profesi,
             asalPendidikan: String(row[12] || '').trim(),
             statusKepegawaian: status,
+            nip: nip,
             photo: photo,
             linkPhoto: photo,
             sipExpDate: sipExpDate,
@@ -181,7 +183,7 @@ export class NakesRepository {
       newMember.tahunMasukRSUD || '',                             // 11: Tahun Masuk RSUD (Col L)
       newMember.asalPendidikan || '',                             // 12: Alumni/Universitas (Col M)
       normalizeStatusForSheet(newMember.statusKepegawaian),        // 13: Status Kepegawaian (Col N)
-      newMember.nomorAnggota || '',                               // 14: NIP (Col O)
+      newMember.nip || newMember.nomorAnggota || '',               // 14: NIP (Col O)
       '',                                                         // 15: Nomor Hp (Col P)
       newMember.sipExpDate || '',                                 // 16: Masa Habis SIP (Col Q)
       newMember.tglPermohonan || '',                              // 17: Tanggal Permohonan (Col R)
@@ -257,7 +259,7 @@ export class NakesRepository {
       updated.tahunMasukRSUD || '',                              // 11: Tahun Masuk RSUD (Col L)
       updated.asalPendidikan || '',                              // 12: Alumni/Universitas (Col M)
       normalizeStatusForSheet(updated.statusKepegawaian),        // 13: Status Kepegawaian (Col N)
-      updated.nomorAnggota || '',                                // 14: NIP (Col O)
+      updated.nip || updated.nomorAnggota || '',                 // 14: NIP (Col O)
       '',                                                         // 15: Nomor Hp (Col P)
       updated.sipExpDate || '',                                  // 16: Masa Habis SIP (Col Q)
       updated.tglPermohonan || '',                               // 17: Tanggal Permohonan (Col R)

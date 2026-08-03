@@ -31,6 +31,7 @@ const PERIHAL_OPTIONS = [
 const formSchema = z.object({
   namaLengkap: z.string().min(3, 'Nama lengkap minimal 3 karakter'),
   email: z.string().email('Format email tidak valid'),
+  nip: z.string().optional(),
   tanggalLahir: z.string().min(1, 'Tanggal lahir wajib diisi'),
   statusKepegawaian: z.string().min(1, 'Status kepegawaian wajib dipilih'),
   alamat: z.string().min(5, 'Alamat minimal 5 karakter'),
@@ -106,6 +107,7 @@ export function FormAnggota({ initialData, isEdit = false, onSuccess }: FormAngg
     defaultValues: {
       namaLengkap: initialData?.namaLengkap || '',
       email: initialData?.email || initialData?.emailAddress || '',
+      nip: initialData?.nip || initialData?.nomorAnggota || '',
       tanggalLahir: initialData?.tanggalLahir || '',
       statusKepegawaian: initialData?.statusKepegawaian || 'PNS',
       alamat: initialData?.alamat || '',
@@ -301,6 +303,19 @@ export function FormAnggota({ initialData, isEdit = false, onSuccess }: FormAngg
             {errors.email && (
               <p className="text-[11px] text-rose-400 mt-1">{errors.email.message}</p>
             )}
+          </div>
+
+          {/* NIP (Jika tidak ada boleh di tulis (0)) */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              NIP (Jika tidak ada boleh di tulis (0))
+            </label>
+            <input
+              type="text"
+              {...register('nip')}
+              placeholder="198408152006041001 atau 0"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
+            />
           </div>
 
           {/* Masa Habis SIP (Input Kalender) */}
