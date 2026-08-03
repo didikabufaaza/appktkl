@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { NakesRepository } from '@/repositories/nakesRepository';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
-    const data = await NakesRepository.getAllNakes();
+    const data = await NakesRepository.getAllNakes(true);
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     console.error('API GET /api/anggota error:', error);
