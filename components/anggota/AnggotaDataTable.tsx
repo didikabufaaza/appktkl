@@ -209,6 +209,7 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
           if (!status) return <span className="text-slate-500 text-xs italic">-</span>;
           let badgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
           if (status === 'PPPK') badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+          if (status === 'PPPK PW') badgeColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
           if (status === 'BLUD') badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
           if (status === 'Honorer' || status === 'Kontrak') badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
           return (
