@@ -64,9 +64,27 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
   const isolatedData = useMemo(() => {
     if (!canViewAll && userSession) {
       return data.filter((item) => {
+        const itemId = String(item.id).trim();
+        const userMemberId = String(userSession.memberId || '').trim();
+
+        // Primary match by exact Member ID
+        if (userMemberId && itemId === userMemberId) return true;
+
+        // Secondary match by email (only if email is valid and not generic fallback)
         const itemEmail = (item.email || item.emailAddress || '').toLowerCase().trim();
         const userEmail = (userSession.email || userSession.username || '').toLowerCase().trim();
-        return item.id === userSession.memberId || itemEmail === userEmail;
+
+        if (
+          userEmail &&
+          itemEmail &&
+          userEmail === itemEmail &&
+          !userEmail.includes('@ktkl.local') &&
+          userEmail !== 'anggota@rsudokut.go.id'
+        ) {
+          return true;
+        }
+
+        return false;
       });
     }
     return data;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { ShieldAlert, Calendar, AlertTriangle, ArrowRight, Mail, CheckCircle2, Loader2, Send, Sparkles } from 'lucide-react';
 import { DashboardStats } from '@/types/nakes';
@@ -18,8 +18,33 @@ export function ReminderAlerts({ reminders, userSession }: ReminderAlertsProps) 
   const [testModalItem, setTestModalItem] = useState<any>(null);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
-  const sipReminders = (reminders || []).filter((r) => r.documentType === 'SIP');
-  const rekredensialReminders = (reminders || []).filter((r) => r.documentType === 'Rekredensial');
+  const isUser = userSession?.role === 'user';
+  const userMemberId = String(userSession?.memberId || '').trim();
+  const userEmail = (userSession?.email || userSession?.username || '').toLowerCase().trim();
+
+  const sipReminders = useMemo(() => {
+    const list = (reminders || []).filter((r) => r.documentType === 'SIP');
+    if (isUser && userSession) {
+      return list.filter((r) => {
+        const itemEmail = (r.email || '').toLowerCase().trim();
+        const rawId = String(r.id || '').split('-')[0].trim();
+        return rawId === userMemberId || (itemEmail && itemEmail === userEmail && !itemEmail.includes('@ktkl.local'));
+      });
+    }
+    return list;
+  }, [reminders, isUser, userSession, userMemberId, userEmail]);
+
+  const rekredensialReminders = useMemo(() => {
+    const list = (reminders || []).filter((r) => r.documentType === 'Rekredensial');
+    if (isUser && userSession) {
+      return list.filter((r) => {
+        const itemEmail = (r.email || '').toLowerCase().trim();
+        const rawId = String(r.id || '').split('-')[0].trim();
+        return rawId === userMemberId || (itemEmail && itemEmail === userEmail && !itemEmail.includes('@ktkl.local'));
+      });
+    }
+    return list;
+  }, [reminders, isUser, userSession, userMemberId, userEmail]);
 
   const handleSendAllEmails = async () => {
     setIsSendingEmail(true);

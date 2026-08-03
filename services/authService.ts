@@ -50,12 +50,15 @@ export class AuthService {
     const inputUser = String(req.usernameOrEmail || '').trim().toLowerCase();
     const inputPass = String(req.password || '').trim();
 
-    // 1. Check Superadmin
-    if (
-      inputUser === 'superadmin' ||
-      inputUser === 'superadmin@rsudokut.go.id' ||
-      req.role === 'superadmin'
-    ) {
+    if (!inputUser) {
+      throw new Error('Username atau Email wajib diisi.');
+    }
+
+    // 1. Strict Check Superadmin
+    if (inputUser === 'superadmin' || inputUser === 'superadmin@rsudokut.go.id') {
+      if (inputPass && inputPass !== 'admin') {
+        throw new Error('Password Superadmin salah.');
+      }
       const user: UserSession = {
         id: 'usr-superadmin',
         username: 'superadmin',
@@ -68,12 +71,11 @@ export class AuthService {
       return { user, token };
     }
 
-    // 2. Check Admin
-    if (
-      inputUser === 'admin' ||
-      inputUser === 'admin@rsudokut.go.id' ||
-      req.role === 'admin'
-    ) {
+    // 2. Strict Check Admin
+    if (inputUser === 'admin' || inputUser === 'admin@rsudokut.go.id') {
+      if (inputPass && inputPass !== 'admin') {
+        throw new Error('Password Admin salah.');
+      }
       const user: UserSession = {
         id: 'usr-admin',
         username: 'admin',
@@ -92,59 +94,64 @@ export class AuthService {
       const email1 = String(m.email || '').trim().toLowerCase();
       const email2 = String(m.emailAddress || '').trim().toLowerCase();
       const nama = String(m.namaLengkap || '').trim().toLowerCase();
-      return (email1 && email1 === inputUser) || (email2 && email2 === inputUser) || nama === inputUser;
+      const nomor = String(m.nomorAnggota || '').trim().toLowerCase();
+
+      return (
+        (email1 && email1 === inputUser) ||
+        (email2 && email2 === inputUser) ||
+        (nama && nama === inputUser) ||
+        (nomor && nomor === inputUser)
+      );
     });
 
-    if (matchedMember) {
-      // Validate profession name as password (case-insensitive check or fallback)
-      const memberProfesi = String(matchedMember.profesi || '').trim().toLowerCase();
-
-      if (inputPass && memberProfesi && !inputPass.toLowerCase().includes(memberProfesi) && !memberProfesi.includes(inputPass.toLowerCase())) {
-        throw new Error(`Password salah. Gunakan nama profesi Anda (Contoh: ${matchedMember.profesi}) sebagai password.`);
-      }
-
-      // Check for Superadmin custom permission overrides
-      const overrides = readPermissionOverrides();
-      const customPerms = overrides[matchedMember.email.toLowerCase()] || overrides[matchedMember.id];
-
-      const userPermissions: UserPermissions = customPerms
-        ? { ...DEFAULT_USER_PERMISSIONS, ...customPerms }
-        : DEFAULT_USER_PERMISSIONS;
-
-      const user: UserSession = {
-        id: `m-${matchedMember.id}`,
-        username: matchedMember.email || matchedMember.namaLengkap,
-        nama: matchedMember.namaLengkap,
-        role: 'user',
-        email: matchedMember.email || matchedMember.emailAddress || 'anggota@rsudokut.go.id',
-        memberId: matchedMember.id,
-        profesi: matchedMember.profesi,
-        permissions: userPermissions,
-      };
-
-      const token = await signJWT(user);
-      return { user, token };
-    }
-
-    // 4. Default fallback matching if user entered profession directly
-    if (inputUser && inputPass) {
+    if (!matchedMember) {
       throw new Error('Email atau username tidak ditemukan di database anggota KTKL RSUD OKU TIMUR.');
     }
 
-    // Fallback default admin
-    const defaultUser: UserSession = {
-      id: 'usr-admin',
-      username: 'admin',
-      nama: 'Administrator Komite KTKL',
-      role: 'admin',
-      email: 'admin@rsudokut.go.id',
-      permissions: ADMIN_PERMISSIONS,
+    // Validate profession name as password
+    const memberProfesi = String(matchedMember.profesi || '').trim().toLowerCase();
+    if (inputPass && memberProfesi) {
+      const isProfesiMatch =
+        inputPass.toLowerCase() === memberProfesi ||
+        inputPass.toLowerCase().includes(memberProfesi) ||
+        memberProfesi.includes(inputPass.toLowerCase());
+
+      if (!isProfesiMatch) {
+        throw new Error(
+          `Password salah. Gunakan nama profesi Anda (Contoh: ${matchedMember.profesi}) sebagai password.`
+        );
+      }
+    }
+
+    // Check for Superadmin custom permission overrides
+    const memberEmailClean = (matchedMember.email || matchedMember.emailAddress || '').toLowerCase().trim();
+    const overrides = readPermissionOverrides();
+    const customPerms = overrides[memberEmailClean] || overrides[matchedMember.id];
+
+    const userPermissions: UserPermissions = customPerms
+      ? { ...DEFAULT_USER_PERMISSIONS, ...customPerms }
+      : DEFAULT_USER_PERMISSIONS;
+
+    const userEmail = memberEmailClean || `member-${matchedMember.id}@ktkl.local`;
+
+    const user: UserSession = {
+      id: `usr-member-${matchedMember.id}`,
+      username: userEmail,
+      nama: matchedMember.namaLengkap,
+      role: 'user',
+      email: userEmail,
+      memberId: String(matchedMember.id),
+      profesi: matchedMember.profesi,
+      permissions: userPermissions,
     };
-    const token = await signJWT(defaultUser);
-    return { user: defaultUser, token };
+
+    const token = await signJWT(user);
+    return { user, token };
   }
 
   static async verifySession(token: string): Promise<UserSession | null> {
-    return await verifyJWT(token);
+    const payload = await verifyJWT(token);
+    if (!payload) return null;
+    return payload as unknown as UserSession;
   }
 }

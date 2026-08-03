@@ -54,7 +54,11 @@ export default function LoginPage() {
       const data = await res.json();
       if (data.success) {
         toast.success(`🎉 Selamat datang kembali, ${data.data?.nama}! (${data.data?.role.toUpperCase()})`);
-        router.push('/dashboard');
+        if (data.data?.role === 'user' && data.data?.memberId) {
+          router.push(`/anggota/${data.data.memberId}`);
+        } else {
+          router.push('/dashboard');
+        }
         router.refresh();
       } else {
         toast.error(data.message || 'Gagal masuk. Periksa kembali email dan password Anda.');
