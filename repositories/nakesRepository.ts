@@ -259,7 +259,7 @@ export class NakesRepository {
       updated.photo || updated.linkPhoto || '',                   // 10: PHOTO
       updated.tahunMasukRSUD || '',                              // 11: Tahun Masuk RSUD
       updated.asalPendidikan || '',                              // 12: Alumni/Universitas
-      updated.statusKepegawaian || '',                           // 13: Status Kepegawaian
+      normalizeStatusForSheet(updated.statusKepegawaian),        // 13: Status Kepegawaian (Matching Sheet Data Validation)
       updated.nomorAnggota || '',                                // 14: NIP
       '',                                                         // 15: Nomor Hp
       updated.sipExpDate || '',                                  // 16: Masa Habis SIP
@@ -493,4 +493,12 @@ function toStandardDate(dateStr: string): string {
     }
   }
   return dateStr;
+}
+
+function normalizeStatusForSheet(status?: string): string {
+  if (!status) return '';
+  const s = status.trim();
+  if (s.includes('PPP PW') || s.includes('PPPK PW')) return 'PPP PW';
+  if (s.includes('KONTRAK') || s.includes('MOU')) return 'KONTRAK/MOU';
+  return s;
 }
