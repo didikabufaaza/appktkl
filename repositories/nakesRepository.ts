@@ -167,30 +167,27 @@ export class NakesRepository {
     saveMemberAddition(newMember);
 
     const rowValue = [
-      newMember.timestamp,                                        // 0: Timestamp
-      newMember.emailAddress || newMember.email,                  // 1: Email Address
-      newMember.namaLengkap,                                      // 2: Nama Lengkap
-      newMember.tanggalLahir || '',                               // 3: Tanggal Lahir
-      newMember.alamat || '',                                     // 4: Alamat KTP
-      newMember.alamat || '',                                     // 5: Alamat Tempat Tinggal
-      newMember.pendidikan || '',                                 // 6: Pendidikan Terakhir
-      '',                                                         // 7: Tahun Lulus
-      newMember.profesi || '',                                    // 8: Profesi
-      newMember.berkasUrl || newMember.strUrl || '',              // 9: Upload dokumen PDF
-      newMember.photo || newMember.linkPhoto || '',               // 10: PHOTO
-      newMember.tahunMasukRSUD || '',                             // 11: Tahun Masuk RSUD
-      newMember.asalPendidikan || '',                             // 12: Alumni/Universitas
-      newMember.statusKepegawaian || '',                          // 13: Status Kepegawaian
-      newMember.nomorAnggota || '',                               // 14: NIP
-      '',                                                         // 15: Nomor Hp
-      newMember.sipExpDate || '',                                 // 16: Masa Habis SIP
-      newMember.tglPermohonan || '',                              // 17: Tanggal Permohonan
-      newMember.lampiran || '1 Berkas',                           // 18: Lampiran
-      newMember.perihal || 'Permohonan Kredensial',               // 19: Perihal
-      newMember.qr || '',                                         // 20: QR
-      newMember.deskripsi || '',                                  // 21: DESKRIPSI
-      newMember.nomorAnggota || '',                               // 22: NOMOR ANGGOTA
-    ];
+      newMember.timestamp,                                        // 0: Timestamp (Col A)
+      newMember.emailAddress || newMember.email,                  // 1: Email Address (Col B)
+      newMember.namaLengkap,                                      // 2: Nama Lengkap (Col C)
+      newMember.tanggalLahir || '',                               // 3: Tanggal Lahir (Col D)
+      newMember.alamat || '',                                     // 4: Alamat KTP (Col E)
+      newMember.alamat || '',                                     // 5: Alamat Tempat Tinggal (Col F)
+      newMember.pendidikan || '',                                 // 6: Pendidikan Terakhir (Col G)
+      '',                                                         // 7: Tahun Lulus (Col H)
+      newMember.profesi || '',                                    // 8: Profesi (Col I)
+      newMember.berkasUrl || newMember.strUrl || '',              // 9: Upload dokumen PDF (Col J)
+      newMember.photo || newMember.linkPhoto || '',               // 10: PHOTO (Col K)
+      newMember.tahunMasukRSUD || '',                             // 11: Tahun Masuk RSUD (Col L)
+      newMember.asalPendidikan || '',                             // 12: Alumni/Universitas (Col M)
+      normalizeStatusForSheet(newMember.statusKepegawaian),        // 13: Status Kepegawaian (Col N)
+      newMember.nomorAnggota || '',                               // 14: NIP (Col O)
+      '',                                                         // 15: Nomor Hp (Col P)
+      newMember.sipExpDate || '',                                 // 16: Masa Habis SIP (Col Q)
+      newMember.tglPermohonan || '',                              // 17: Tanggal Permohonan (Col R)
+      newMember.lampiran || '1 Berkas',                           // 18: Lampiran (Col S)
+      newMember.perihal || 'Permohonan Kredensial',               // 19: Perihal (Col T)
+    ]; // Strictly 20 columns (A to T). Columns U, V, W (Formulas) are NEVER touched!
 
     // 1. Try Google Sheets API v4
     const sheets = getSheetsClient();
@@ -198,7 +195,7 @@ export class NakesRepository {
       try {
         await sheets.spreadsheets.values.append({
           spreadsheetId: SPREADSHEET_ID,
-          range: "'Form Responses 1'!A:W",
+          range: "'Form Responses 1'!A:T",
           valueInputOption: 'USER_ENTERED',
           requestBody: { values: [rowValue] },
         });
@@ -246,30 +243,27 @@ export class NakesRepository {
     const rowIndex = !isNaN(numericId) && numericId > 0 ? numericId + 1 : index + 2;
 
     const rowValue = [
-      updated.timestamp || '',                                    // 0: Timestamp
-      updated.emailAddress || updated.email || '',                // 1: Email Address
-      updated.namaLengkap || '',                                 // 2: Nama Lengkap
-      updated.tanggalLahir || '',                                // 3: Tanggal Lahir
-      updated.alamat || '',                                      // 4: Alamat KTP
-      updated.alamat || '',                                      // 5: Alamat Tempat Tinggal
-      updated.pendidikan || '',                                  // 6: Pendidikan Terakhir
-      '',                                                         // 7: Tahun Lulus
-      updated.profesi || '',                                     // 8: Profesi
-      updated.berkasUrl || updated.strUrl || '',                  // 9: Upload dokumen PDF
-      updated.photo || updated.linkPhoto || '',                   // 10: PHOTO
-      updated.tahunMasukRSUD || '',                              // 11: Tahun Masuk RSUD
-      updated.asalPendidikan || '',                              // 12: Alumni/Universitas
-      normalizeStatusForSheet(updated.statusKepegawaian),        // 13: Status Kepegawaian (Matching Sheet Data Validation)
-      updated.nomorAnggota || '',                                // 14: NIP
-      '',                                                         // 15: Nomor Hp
-      updated.sipExpDate || '',                                  // 16: Masa Habis SIP
-      updated.tglPermohonan || '',                               // 17: Tanggal Permohonan
-      updated.lampiran || '',                                    // 18: Lampiran
-      updated.perihal || '',                                     // 19: Perihal
-      updated.qr || '',                                          // 20: QR
-      updated.deskripsi || '',                                   // 21: DESKRIPSI
-      updated.nomorAnggota || '',                                // 22: NOMOR ANGGOTA
-    ];
+      updated.timestamp || '',                                    // 0: Timestamp (Col A)
+      updated.emailAddress || updated.email || '',                // 1: Email Address (Col B)
+      updated.namaLengkap || '',                                 // 2: Nama Lengkap (Col C)
+      updated.tanggalLahir || '',                                // 3: Tanggal Lahir (Col D)
+      updated.alamat || '',                                      // 4: Alamat KTP (Col E)
+      updated.alamat || '',                                      // 5: Alamat Tempat Tinggal (Col F)
+      updated.pendidikan || '',                                  // 6: Pendidikan Terakhir (Col G)
+      '',                                                         // 7: Tahun Lulus (Col H)
+      updated.profesi || '',                                     // 8: Profesi (Col I)
+      updated.berkasUrl || updated.strUrl || '',                  // 9: Upload dokumen PDF (Col J)
+      updated.photo || updated.linkPhoto || '',                   // 10: PHOTO (Col K)
+      updated.tahunMasukRSUD || '',                              // 11: Tahun Masuk RSUD (Col L)
+      updated.asalPendidikan || '',                              // 12: Alumni/Universitas (Col M)
+      normalizeStatusForSheet(updated.statusKepegawaian),        // 13: Status Kepegawaian (Col N)
+      updated.nomorAnggota || '',                                // 14: NIP (Col O)
+      '',                                                         // 15: Nomor Hp (Col P)
+      updated.sipExpDate || '',                                  // 16: Masa Habis SIP (Col Q)
+      updated.tglPermohonan || '',                               // 17: Tanggal Permohonan (Col R)
+      updated.lampiran || '',                                    // 18: Lampiran (Col S)
+      updated.perihal || '',                                     // 19: Perihal (Col T)
+    ]; // Strictly 20 columns (A to T). Columns U, V, W (Formulas) are NEVER touched!
 
     // 1. Try Google Sheets API v4
     const sheets = getSheetsClient();
@@ -277,11 +271,11 @@ export class NakesRepository {
       try {
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID,
-          range: `'Form Responses 1'!A${rowIndex}:W${rowIndex}`,
+          range: `'Form Responses 1'!A${rowIndex}:T${rowIndex}`,
           valueInputOption: 'USER_ENTERED',
           requestBody: { values: [rowValue] },
         });
-        console.log(`✅ Row ${rowIndex} successfully updated in Form Responses 1 via API!`);
+        console.log(`✅ Row ${rowIndex} successfully updated in Form Responses 1 via API (Cols A-T preserved)!`);
       } catch (err) {
         console.error('Failed to update row in Google Sheets Form Responses 1 via API:', err);
       }
@@ -302,7 +296,7 @@ export class NakesRepository {
             rowValue,
           }),
         });
-        console.log(`✅ Row ${rowIndex} successfully updated via Google Apps Script Web App!`);
+        console.log(`✅ Row ${rowIndex} successfully updated via Google Apps Script Web App (Cols A-T preserved)!`);
       } catch (scriptErr) {
         console.error('Google Apps Script update error:', scriptErr);
       }
