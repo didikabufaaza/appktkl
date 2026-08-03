@@ -356,9 +356,9 @@ export function FormAnggota({ initialData, isEdit = false, onSuccess }: FormAngg
             >
               <option value="PNS">PNS</option>
               <option value="PPPK">PPPK</option>
-              <option value="PPPK PW">PPPK PW</option>
+              <option value="PPPK PW (Baru)">PPPK PW (Baru)</option>
               <option value="BLUD">BLUD</option>
-              <option value="Honorer">Honorer / Kontrak</option>
+              <option value="KONTRAK/MOU">KONTRAK/MOU</option>
             </select>
           </div>
 
