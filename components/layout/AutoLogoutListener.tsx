@@ -9,22 +9,24 @@ const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 Minutes (180,000 ms)
 export function AutoLogoutListener() {
   const router = useRouter();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   const performAutoLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) {
-      // Ignore network errors on logout
+      // Ignore network errors
     }
     toast.error(
       '🔒 Sesi Berakhir: Anda telah otomatis ter-logout dari aplikasi karena tidak ada aktivitas selama 3 menit.',
-      { duration: 6000 }
+      { duration: 7000 }
     );
     router.push('/login?reason=inactivity');
     router.refresh();
   };
 
   const resetTimer = () => {
+    lastActivityRef.current = Date.now();
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
@@ -32,17 +34,28 @@ export function AutoLogoutListener() {
   };
 
   useEffect(() => {
-    // List of user activity events
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    // List of user activity events (including touch & pointer for mobile)
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'scroll', 'click'];
 
-    // Throttle listener to avoid high CPU usage
-    let lastReset = Date.now();
     const handleUserActivity = () => {
       const now = Date.now();
-      if (now - lastReset > 1000) {
-        // Reset timer at most once per second
-        lastReset = now;
+      if (now - lastActivityRef.current > 1000) {
         resetTimer();
+      }
+    };
+
+    // Handle mobile tab switching & screen lock
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const timeElapsed = Date.now() - lastActivityRef.current;
+        if (timeElapsed >= INACTIVITY_TIMEOUT) {
+          performAutoLogout();
+        } else {
+          // Resume timer for remaining time
+          const remaining = INACTIVITY_TIMEOUT - timeElapsed;
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(performAutoLogout, remaining);
+        }
       }
     };
 
@@ -53,6 +66,7 @@ export function AutoLogoutListener() {
     events.forEach((evt) => {
       window.addEventListener(evt, handleUserActivity, { passive: true });
     });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Cleanup listeners on unmount
     return () => {
@@ -62,6 +76,7 @@ export function AutoLogoutListener() {
       events.forEach((evt) => {
         window.removeEventListener(evt, handleUserActivity);
       });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

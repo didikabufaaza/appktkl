@@ -15,16 +15,18 @@ import {
   LogOut,
   Hospital,
   Key,
-  ShieldAlert,
+  X,
 } from 'lucide-react';
 import { UserSession } from '@/types/nakes';
 
 interface SidebarProps {
   userSession?: UserSession | null;
   onLogout?: () => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
-export function Sidebar({ userSession, onLogout }: SidebarProps) {
+export function Sidebar({ userSession, onLogout, isMobileOpen = false, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
   const role = userSession?.role || 'admin';
   const userName = userSession?.nama || 'Pengguna KTKL';
@@ -82,17 +84,29 @@ export function Sidebar({ userSession, onLogout }: SidebarProps) {
         ]),
   ];
 
-  return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 text-slate-200 flex flex-col h-screen sticky top-0 z-30 transition-all duration-300">
+  const sidebarContent = (
+    <aside className="w-64 bg-slate-900 border-r border-slate-800 text-slate-200 flex flex-col h-full sticky top-0 z-30 transition-all duration-300">
       {/* Brand Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-emerald-500/20 shrink-0">
-          <Hospital className="w-6 h-6" />
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-emerald-500/20 shrink-0">
+            <Hospital className="w-6 h-6" />
+          </div>
+          <div className="truncate">
+            <h1 className="font-bold text-slate-100 text-sm leading-tight tracking-wide truncate">KOMITE KTKL</h1>
+            <p className="text-[11px] text-slate-400 font-medium">RSUD OKU TIMUR</p>
+          </div>
         </div>
-        <div className="truncate">
-          <h1 className="font-bold text-slate-100 text-sm leading-tight tracking-wide truncate">KOMITE KTKL</h1>
-          <p className="text-[11px] text-slate-400 font-medium">RSUD OKU TIMUR</p>
-        </div>
+
+        {/* Mobile Close Button */}
+        {onCloseMobile && (
+          <button
+            onClick={onCloseMobile}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white md:hidden"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Profile Card */}
@@ -132,6 +146,7 @@ export function Sidebar({ userSession, onLogout }: SidebarProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => onCloseMobile && onCloseMobile()}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     isActive
                       ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
@@ -150,7 +165,10 @@ export function Sidebar({ userSession, onLogout }: SidebarProps) {
       {/* Logout Footer */}
       <div className="p-3 border-t border-slate-800">
         <button
-          onClick={onLogout}
+          onClick={() => {
+            if (onCloseMobile) onCloseMobile();
+            if (onLogout) onLogout();
+          }}
           className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 border border-transparent hover:border-rose-900/40 transition-all"
         >
           <LogOut className="w-4 h-4" />
@@ -158,5 +176,23 @@ export function Sidebar({ userSession, onLogout }: SidebarProps) {
         </button>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (hidden on mobile, visible on md+) */}
+      <div className="hidden md:block h-screen">{sidebarContent}</div>
+
+      {/* Mobile Slide-over Drawer Overlay */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+            onClick={onCloseMobile}
+          />
+          <div className="relative w-64 h-full z-10 shadow-2xl">{sidebarContent}</div>
+        </div>
+      )}
+    </>
   );
 }

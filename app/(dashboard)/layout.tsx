@@ -17,6 +17,7 @@ export default function DashboardLayout({
   const [userSession, setUserSession] = useState<UserSession | null>(null);
   const [expiringCount, setExpiringCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     // 1. Fetch logged-in user session
@@ -64,11 +65,21 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans antialiased">
       <Toaster position="top-right" theme="dark" richColors />
       <AutoLogoutListener />
-      <Sidebar userSession={userSession} onLogout={handleLogout} />
+
+      <Sidebar
+        userSession={userSession}
+        onLogout={handleLogout}
+        isMobileOpen={isMobileOpen}
+        onCloseMobile={() => setIsMobileOpen(false)}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <Navbar expiringCount={expiringCount} userSession={userSession} />
-        <main className="flex-1 p-6 overflow-y-auto">{children}</main>
+        <Navbar
+          expiringCount={expiringCount}
+          userSession={userSession}
+          onMenuToggle={() => setIsMobileOpen((prev) => !prev)}
+        />
+        <main className="flex-1 p-3 sm:p-6 overflow-y-auto">{children}</main>
       </div>
     </div>
   );
