@@ -2,7 +2,17 @@ import fs from 'fs';
 import path from 'path';
 import { NakesMember, UserPermissions } from '@/types/nakes';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+// Global in-memory storage fallback for Vercel Serverless / Read-Only Filesystems
+declare global {
+  var __ktklOverrides: LocalOverrides | undefined;
+  var __ktklPermissions: Record<string, Partial<UserPermissions>> | undefined;
+}
+
+const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
+const DATA_DIR = isVercel
+  ? path.join(process.env.TMPDIR || '/tmp', 'appktkl_data')
+  : path.join(process.cwd(), 'data');
+
 const OVERRIDES_FILE = path.join(DATA_DIR, 'overrides.json');
 const PERMISSIONS_FILE = path.join(DATA_DIR, 'permissions.json');
 
@@ -12,28 +22,55 @@ export interface LocalOverrides {
   additions: NakesMember[];
 }
 
+function getInitialOverrides(): LocalOverrides {
+  if (!globalThis.__ktklOverrides) {
+    globalThis.__ktklOverrides = { updates: {}, deletions: [], additions: [] };
+  }
+  return globalThis.__ktklOverrides;
+}
+
+function getInitialPermissions(): Record<string, Partial<UserPermissions>> {
+  if (!globalThis.__ktklPermissions) {
+    globalThis.__ktklPermissions = {};
+  }
+  return globalThis.__ktklPermissions;
+}
+
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch (e) {
+    // Read-only filesystem fallback
   }
 }
 
 export function readLocalOverrides(): LocalOverrides {
-  ensureDataDir();
-  if (!fs.existsSync(OVERRIDES_FILE)) {
-    return { updates: {}, deletions: [], additions: [] };
-  }
+  const mem = getInitialOverrides();
   try {
-    const raw = fs.readFileSync(OVERRIDES_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return { updates: {}, deletions: [], additions: [] };
+    ensureDataDir();
+    if (fs.existsSync(OVERRIDES_FILE)) {
+      const raw = fs.readFileSync(OVERRIDES_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      mem.updates = { ...(parsed.updates || {}), ...mem.updates };
+      mem.deletions = Array.from(new Set([...(parsed.deletions || []), ...mem.deletions]));
+      mem.additions = [...(parsed.additions || []), ...mem.additions];
+    }
+  } catch (e) {
+    // Ignore read errors
   }
+  return mem;
 }
 
 export function writeLocalOverrides(data: LocalOverrides) {
-  ensureDataDir();
-  fs.writeFileSync(OVERRIDES_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  globalThis.__ktklOverrides = data;
+  try {
+    ensureDataDir();
+    fs.writeFileSync(OVERRIDES_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    // Silently fallback to in-memory on read-only filesystems (Vercel)
+  }
 }
 
 export function saveMemberUpdate(id: string, updatedFields: Partial<NakesMember>) {
@@ -61,21 +98,28 @@ export function saveMemberDeletion(id: string) {
 
 // Permissions store by account email/id
 export function readPermissionOverrides(): Record<string, Partial<UserPermissions>> {
-  ensureDataDir();
-  if (!fs.existsSync(PERMISSIONS_FILE)) {
-    return {};
-  }
+  const mem = getInitialPermissions();
   try {
-    const raw = fs.readFileSync(PERMISSIONS_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return {};
+    ensureDataDir();
+    if (fs.existsSync(PERMISSIONS_FILE)) {
+      const raw = fs.readFileSync(PERMISSIONS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      Object.assign(mem, parsed);
+    }
+  } catch (e) {
+    // Ignore read errors
   }
+  return mem;
 }
 
 export function savePermissionOverride(emailOrId: string, permissions: UserPermissions) {
-  ensureDataDir();
   const all = readPermissionOverrides();
   all[emailOrId.toLowerCase()] = permissions;
-  fs.writeFileSync(PERMISSIONS_FILE, JSON.stringify(all, null, 2), 'utf-8');
+  globalThis.__ktklPermissions = all;
+  try {
+    ensureDataDir();
+    fs.writeFileSync(PERMISSIONS_FILE, JSON.stringify(all, null, 2), 'utf-8');
+  } catch (e) {
+    // Silently fallback to in-memory on read-only filesystems (Vercel)
+  }
 }
