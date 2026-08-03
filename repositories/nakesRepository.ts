@@ -54,7 +54,7 @@ export class NakesRepository {
           const email = String(row[1] || '').trim();
           const profesi = String(row[8] || 'ATLM').trim();
           const pendidikan = String(row[6] || 'DIII').trim();
-          const status = String(row[13] || 'PNS').trim();
+          const status = String(row[13] || '').trim();
 
           const tglPermohonan = formatDateString(row[17]) || '';
           const perihal = String(row[19] || '').trim();
