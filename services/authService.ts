@@ -1,7 +1,7 @@
-import { UserSession, UserPermissions } from '@/types/nakes';
+import { UserSession, UserPermissions, UserOverride } from '@/types/nakes';
 import { signJWT, verifyJWT } from '@/lib/jwt';
 import { NakesRepository } from '@/repositories/nakesRepository';
-import { readPermissionOverrides } from '@/lib/localStore';
+import { readPermissionOverrides, readUserOverrides } from '@/lib/localStore';
 
 export const SUPERADMIN_PERMISSIONS: UserPermissions = {
   canSendEmail: true,
@@ -13,6 +13,7 @@ export const SUPERADMIN_PERMISSIONS: UserPermissions = {
   canAccessMasterData: true,
   canEditMemberData: true,
   canDeleteMemberData: true,
+  canAccessLetters: true,
 };
 
 export const ADMIN_PERMISSIONS: UserPermissions = {
@@ -25,18 +26,20 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
   canAccessMasterData: true,
   canEditMemberData: true,
   canDeleteMemberData: false,
+  canAccessLetters: false,
 };
 
 export const DEFAULT_USER_PERMISSIONS: UserPermissions = {
   canSendEmail: false,
-  canExportExcelPdf: true, // Can download PDF & Excel of own profile
-  canPrint: true, // Can print digital member card
+  canExportExcelPdf: true,
+  canPrint: true,
   canRegisterNew: false,
-  canViewAllMembers: false, // Private data isolation: Only view own profile
+  canViewAllMembers: false,
   canAccessSpreadsheetSettings: false,
   canAccessMasterData: false,
-  canEditMemberData: true, // Can edit own profile!
-  canDeleteMemberData: false, // CANNOT delete!
+  canEditMemberData: true,
+  canDeleteMemberData: false,
+  canAccessLetters: false,
 };
 
 export interface LoginRequest {
@@ -54,18 +57,32 @@ export class AuthService {
       throw new Error('Username atau Email wajib diisi.');
     }
 
+    // Load user overrides for custom password, role, status (active/inactive)
+    const userOverrides = readUserOverrides();
+
     // 1. Strict Check Superadmin
     if (inputUser === 'superadmin' || inputUser === 'superadmin@rsudokut.go.id') {
-      if (inputPass && inputPass !== 'admin') {
+      const superadminOverride = userOverrides['superadmin'] || userOverrides['superadmin@rsudokut.go.id'];
+      
+      if (superadminOverride?.status === 'inactive') {
+        throw new Error('Akun Superadmin dinonaktifkan oleh administrator.');
+      }
+      
+      const expectedPassword = superadminOverride?.password || 'admin';
+      if (inputPass && inputPass !== expectedPassword) {
         throw new Error('Password Superadmin salah.');
       }
+      
       const user: UserSession = {
         id: 'usr-superadmin',
         username: 'superadmin',
         nama: 'Super Admin KTKL',
         role: 'superadmin',
         email: 'superadmin@rsudokut.go.id',
-        permissions: SUPERADMIN_PERMISSIONS,
+        permissions: {
+          ...SUPERADMIN_PERMISSIONS,
+          ...(superadminOverride?.permissions || {})
+        },
       };
       const token = await signJWT(user);
       return { user, token };
@@ -73,16 +90,27 @@ export class AuthService {
 
     // 2. Strict Check Admin
     if (inputUser === 'admin' || inputUser === 'admin@rsudokut.go.id') {
-      if (inputPass && inputPass !== 'admin') {
+      const adminOverride = userOverrides['admin'] || userOverrides['admin@rsudokut.go.id'];
+      
+      if (adminOverride?.status === 'inactive') {
+        throw new Error('Akun Admin dinonaktifkan oleh administrator.');
+      }
+      
+      const expectedPassword = adminOverride?.password || 'admin';
+      if (inputPass && inputPass !== expectedPassword) {
         throw new Error('Password Admin salah.');
       }
+      
       const user: UserSession = {
         id: 'usr-admin',
         username: 'admin',
         nama: 'Administrator Komite KTKL',
         role: 'admin',
         email: 'admin@rsudokut.go.id',
-        permissions: ADMIN_PERMISSIONS,
+        permissions: {
+          ...ADMIN_PERMISSIONS,
+          ...(adminOverride?.permissions || {})
+        },
       };
       const token = await signJWT(user);
       return { user, token };
@@ -108,29 +136,47 @@ export class AuthService {
       throw new Error('Email atau username tidak ditemukan di database anggota KTKL RSUD OKU TIMUR.');
     }
 
-    // Validate profession name as password
-    const memberProfesi = String(matchedMember.profesi || '').trim().toLowerCase();
-    if (inputPass && memberProfesi) {
-      const isProfesiMatch =
-        inputPass.toLowerCase() === memberProfesi ||
-        inputPass.toLowerCase().includes(memberProfesi) ||
-        memberProfesi.includes(inputPass.toLowerCase());
+    const memberEmailClean = (matchedMember.email || matchedMember.emailAddress || '').toLowerCase().trim();
+    const override = userOverrides[memberEmailClean] || userOverrides[matchedMember.id];
 
-      if (!isProfesiMatch) {
-        throw new Error(
-          `Password salah. Gunakan nama profesi Anda (Contoh: ${matchedMember.profesi}) sebagai password.`
-        );
+    // Check status active/inactive
+    if (override && override.status === 'inactive') {
+      throw new Error('Akun Anda dinonaktifkan oleh Administrator Komite KTKL.');
+    }
+
+    // Validate password (custom or default profession name)
+    if (inputPass) {
+      if (override && override.password) {
+        // Custom password match
+        if (inputPass !== override.password) {
+          throw new Error('Password salah.');
+        }
+      } else {
+        // Default profession match
+        const memberProfesi = String(matchedMember.profesi || '').trim().toLowerCase();
+        const isProfesiMatch =
+          inputPass.toLowerCase() === memberProfesi ||
+          inputPass.toLowerCase().includes(memberProfesi) ||
+          memberProfesi.includes(inputPass.toLowerCase());
+
+        if (!isProfesiMatch) {
+          throw new Error(
+            `Password salah. Gunakan nama profesi Anda (Contoh: ${matchedMember.profesi}) sebagai password.`
+          );
+        }
       }
     }
 
-    // Check for Superadmin custom permission overrides
-    const memberEmailClean = (matchedMember.email || matchedMember.emailAddress || '').toLowerCase().trim();
-    const overrides = readPermissionOverrides();
-    const customPerms = overrides[memberEmailClean] || overrides[matchedMember.id];
+    // Calculate final role & permissions
+    let finalRole = (override?.role || 'user') as 'superadmin' | 'admin' | 'user';
+    let basePerms = DEFAULT_USER_PERMISSIONS;
+    if (finalRole === 'superadmin') basePerms = SUPERADMIN_PERMISSIONS;
+    else if (finalRole === 'admin') basePerms = ADMIN_PERMISSIONS;
 
-    const userPermissions: UserPermissions = customPerms
-      ? { ...DEFAULT_USER_PERMISSIONS, ...customPerms }
-      : DEFAULT_USER_PERMISSIONS;
+    const userPermissions: UserPermissions = {
+      ...basePerms,
+      ...(override?.permissions || {})
+    };
 
     const userEmail = memberEmailClean || `member-${matchedMember.id}@ktkl.local`;
 
@@ -138,7 +184,7 @@ export class AuthService {
       id: `usr-member-${matchedMember.id}`,
       username: userEmail,
       nama: matchedMember.namaLengkap,
-      role: 'user',
+      role: finalRole,
       email: userEmail,
       memberId: String(matchedMember.id),
       profesi: matchedMember.profesi,

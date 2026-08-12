@@ -84,6 +84,29 @@ export interface UserPermissions {
   canAccessMasterData: boolean;
   canEditMemberData: boolean;
   canDeleteMemberData: boolean;
+  canAccessLetters: boolean;
+}
+
+export interface SuratItem {
+  id: string;
+  tipe: 'masuk' | 'keluar';
+  tanggal: string;
+  nomor: string;
+  sifat: string;
+  lampiran: string;
+  hal: string;
+  yth: string;
+  di: string;
+  isiSurat: string;
+  parafKabag: string;
+  parafKasubbag: string;
+  parafPelaksana: string;
+  penandatanganJabatan: string;
+  penandatanganNama: string;
+  penandatanganPangkat: string;
+  penandatanganNip: string;
+  lampiranFileUrl: string;
+  timestamp: string;
 }
 
 export interface UserSession {
@@ -95,4 +118,20 @@ export interface UserSession {
   memberId?: string;
   profesi?: string;
   permissions: UserPermissions;
+}
+
+export interface UserOverride {
+  role?: 'superadmin' | 'admin' | 'user';
+  status?: 'active' | 'inactive';
+  password?: string;
+  permissions?: Partial<UserPermissions>;
+}
+
+export interface KopSuratData {
+  pemda: string;
+  namaRS: string;
+  alamatRS: string;
+  kontakRS: string;
+  logoKiriUrl: string;
+  logoKananUrl: string;
 }

@@ -440,43 +440,71 @@ export class NakesRepository {
   static async getMasterProfesi() {
     const members = await this.getAllNakes();
     const set = new Set(members.map((m) => m.profesi).filter(Boolean));
-    return Array.from(set).map((name, idx) => ({ id: `prof-${idx + 1}`, name, count: members.filter((m) => m.profesi === name).length }));
+    return Array.from(set).map((name, idx) => ({
+      id: `prof-${idx + 1}`,
+      kode: `PROF-${String(idx + 1).padStart(2, '0')}`,
+      nama: name,
+      deskripsi: `Profesi Tenaga Kesehatan Lain - Total ${members.filter((m) => m.profesi === name).length} Anggota`,
+    }));
   }
 
   static async getMasterPendidikan() {
     const members = await this.getAllNakes();
     const set = new Set(members.map((m) => m.pendidikan).filter(Boolean));
-    return Array.from(set).map((name, idx) => ({ id: `edu-${idx + 1}`, name, count: members.filter((m) => m.pendidikan === name).length }));
+    return Array.from(set).map((name, idx) => ({
+      id: `edu-${idx + 1}`,
+      kode: `EDU-${String(idx + 1).padStart(2, '0')}`,
+      nama: name,
+      deskripsi: `Jenjang Pendidikan - Total ${members.filter((m) => m.pendidikan === name).length} Anggota`,
+    }));
   }
 
   static async getMasterUnit() {
-    return [
-      { id: 'u-1', name: 'Komite Nakes Lain', code: 'KTKL' },
-      { id: 'u-2', name: 'Laboratorium (PATELKI)', code: 'LAB' },
-      { id: 'u-3', name: 'Farmasi (IAI / PAFI)', code: 'FAR' },
-      { id: 'u-4', name: 'Radiologi (PARI)', code: 'RAD' },
-      { id: 'u-5', name: 'Gizi (PERSAGI)', code: 'GZ' },
-      { id: 'u-6', name: 'Elektromedis (IKATEMI)', code: 'TEM' },
+    const units = [
+      { id: 'u-1', code: 'KTKL', name: 'Komite Nakes Lain', desc: 'Rumpun Komite Tenaga Kesehatan Lain' },
+      { id: 'u-2', code: 'LAB', name: 'Laboratorium (PATELKI)', desc: 'Persatuan Ahli Teknologi Laboratorium Medik Indonesia' },
+      { id: 'u-3', code: 'FAR', name: 'Farmasi (IAI / PAFI)', desc: 'Ikatan Apoteker Indonesia / Persatuan Ahli Farmasi Indonesia' },
+      { id: 'u-4', code: 'RAD', name: 'Radiologi (PARI)', desc: 'Perhimpunan Radiografer Indonesia' },
+      { id: 'u-5', code: 'GZ', name: 'Gizi (PERSAGI)', desc: 'Persatuan Ahli Gizi Indonesia' },
+      { id: 'u-6', code: 'TEM', name: 'Elektromedis (IKATEMI)', desc: 'Ikatan Elektromedis Indonesia' },
     ];
+    return units.map((u) => ({
+      id: u.id,
+      kode: u.code,
+      nama: u.name,
+      deskripsi: u.desc,
+    }));
   }
 
   static async getMasterJabatan() {
-    return [
-      { id: 'j-1', name: 'Ketua Komite KTKL', level: 'Ketua' },
-      { id: 'j-2', name: 'Sekretaris Komite KTKL', level: 'Sekretaris' },
-      { id: 'j-3', name: 'Sub Komite Kredensial', level: 'SubKom' },
-      { id: 'j-4', name: 'Sub Komite Mutu Profesi', level: 'SubKom' },
-      { id: 'j-5', name: 'Sub Komite Etika & Disiplin', level: 'SubKom' },
-      { id: 'j-6', name: 'Anggota Komite KTKL', level: 'Anggota' },
+    const jabatans = [
+      { id: 'j-1', code: 'JAB-01', name: 'Ketua Komite KTKL', desc: 'Ketua Komite Tenaga Kesehatan Lain' },
+      { id: 'j-2', code: 'JAB-02', name: 'Sekretaris Komite KTKL', desc: 'Sekretaris Komite Tenaga Kesehatan Lain' },
+      { id: 'j-3', code: 'JAB-03', name: 'Sub Komite Kredensial', desc: 'Koordinator dan Anggota Sub Komite Kredensial' },
+      { id: 'j-4', code: 'JAB-04', name: 'Sub Komite Mutu Profesi', desc: 'Koordinator dan Anggota Sub Komite Mutu Profesi' },
+      { id: 'j-5', code: 'JAB-05', name: 'Sub Komite Etika & Disiplin', desc: 'Koordinator dan Anggota Sub Komite Etika & Disiplin' },
+      { id: 'j-6', code: 'JAB-06', name: 'Anggota Komite KTKL', desc: 'Anggota Fungsional Komite Tenaga Kesehatan Lain' },
     ];
+    return jabatans.map((j) => ({
+      id: j.id,
+      kode: j.code,
+      nama: j.name,
+      deskripsi: j.desc,
+    }));
   }
 
   static async getMasterKomite() {
-    return [
-      { id: 'k-1', name: 'Sub Komite Kredensial', coordinator: 'Ketua SubKom Kredensial' },
-      { id: 'k-2', name: 'Sub Komite Mutu Profesi', coordinator: 'Ketua SubKom Mutu' },
-      { id: 'k-3', name: 'Sub Komite Etika & Disiplin Profesi', coordinator: 'Ketua SubKom Etika' },
+    const komites = [
+      { id: 'k-1', code: 'KOM-KRED', name: 'Sub Komite Kredensial', desc: 'Ketua SubKom Kredensial - Mengatur Kredensialing & Rekredensialing' },
+      { id: 'k-2', code: 'KOM-MUTU', name: 'Sub Komite Mutu Profesi', desc: 'Ketua SubKom Mutu - Menjaga Mutu Pelayanan & Kompetensi' },
+      { id: 'k-3', code: 'KOM-ETIK', name: 'Sub Komite Etika & Disiplin Profesi', desc: 'Ketua SubKom Etika - Mengawasi Disiplin Profesi & Etika Nakes' },
     ];
+    return komites.map((k) => ({
+      id: k.id,
+      kode: k.code,
+      nama: k.name,
+      deskripsi: k.desc,
+    }));
   }
 }
 

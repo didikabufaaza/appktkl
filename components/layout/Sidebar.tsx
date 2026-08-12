@@ -16,6 +16,10 @@ import {
   Hospital,
   Key,
   X,
+  MailOpen,
+  Send,
+  UserCog,
+  Settings,
 } from 'lucide-react';
 import { UserSession } from '@/types/nakes';
 
@@ -64,13 +68,30 @@ export function Sidebar({ userSession, onLogout, isMobileOpen = false, onCloseMo
                 : []),
             ],
           },
+          ...(isSuperadmin || permissions?.canAccessLetters
+            ? [
+                {
+                  title: 'MANAJEMEN SURAT',
+                  items: [
+                    { name: 'Surat Masuk', href: '/surat/masuk', icon: MailOpen },
+                    { name: 'Surat Keluar', href: '/surat/keluar', icon: Send },
+                  ],
+                },
+              ]
+            : []),
           ...(permissions?.canAccessMasterData !== false
             ? [
                 {
                   title: 'MASTER DATA',
                   items: [
                     ...(isSuperadmin
-                      ? [{ name: 'Matriks Hak Akses', href: '/master/hak-akses', icon: Key }]
+                      ? [
+                          { name: 'Matriks Hak Akses', href: '/master/hak-akses', icon: Key },
+                          { name: 'Manajemen Pengguna', href: '/master/users', icon: UserCog },
+                        ]
+                      : []),
+                    ...(isSuperadmin || isAdmin
+                      ? [{ name: 'Pengaturan Kop Surat', href: '/master/kop-surat', icon: Settings }]
                       : []),
                     { name: 'Master Profesi', href: '/master/profesi', icon: Briefcase },
                     { name: 'Master Pendidikan', href: '/master/pendidikan', icon: GraduationCap },
