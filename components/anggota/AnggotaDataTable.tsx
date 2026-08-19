@@ -80,6 +80,7 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
   const [globalFilter, setGlobalFilter] = useState('');
   const [selectedProfesi, setSelectedProfesi] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedAlumni, setSelectedAlumni] = useState<string>('ALL');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [selectedCardMember, setSelectedCardMember] = useState<NakesMember | null>(null);
@@ -130,14 +131,20 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
     return ['ALL', ...Array.from(set)];
   }, [isolatedData]);
 
-  // Apply manual profession & status filter
+  const alumniOptions = useMemo(() => {
+    const set = new Set(isolatedData.map((d) => d.asalPendidikan).filter(Boolean));
+    return ['ALL', ...Array.from(set).sort()];
+  }, [isolatedData]);
+
+  // Apply manual profession, status & alumni filter
   const filteredData = useMemo(() => {
     return isolatedData.filter((item) => {
       const matchProfesi = selectedProfesi === 'ALL' || item.profesi === selectedProfesi;
       const matchStatus = selectedStatus === 'ALL' || item.statusKepegawaian === selectedStatus;
-      return matchProfesi && matchStatus;
+      const matchAlumni = selectedAlumni === 'ALL' || item.asalPendidikan === selectedAlumni;
+      return matchProfesi && matchStatus && matchAlumni;
     });
-  }, [isolatedData, selectedProfesi, selectedStatus]);
+  }, [isolatedData, selectedProfesi, selectedStatus, selectedAlumni]);
 
   const columns = useMemo<ColumnDef<NakesMember>[]>(
     () => [
@@ -242,6 +249,15 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
             {String(info.getValue())}
           </span>
         ),
+      },
+      {
+        accessorKey: 'asalPendidikan',
+        header: 'Alumni / Universitas',
+        cell: (info) => {
+          const val = String(info.getValue() || '').trim();
+          if (!val) return <span className="text-slate-500 text-xs italic">-</span>;
+          return <span className="text-xs text-slate-300 font-semibold">{val}</span>;
+        },
       },
       {
         accessorKey: 'statusKepegawaian',
@@ -417,6 +433,7 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
       Email: m.email || m.emailAddress || '-',
       Profesi: m.profesi,
       Pendidikan: m.pendidikan,
+      Alumni: m.asalPendidikan || '-',
       Status: m.statusKepegawaian,
       'Tgl Permohonan': m.tglPermohonan || '-',
       'Habis SIP': m.sipExpDate || '-',
@@ -439,6 +456,7 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
       m.email || '-',
       m.profesi,
       m.pendidikan,
+      m.asalPendidikan || '-',
       m.statusKepegawaian,
       m.tglPermohonan || '-',
       m.sipExpDate || '-',
@@ -448,7 +466,7 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
     ]);
     autoTable(doc, {
       startY: 20,
-      head: [['No', 'Nama', 'Email', 'Profesi', 'Pend.', 'Status', 'Tgl Mohon', 'Masa SIP', 'Rekredensial', 'Thn Masuk', 'Masa Kerja']],
+      head: [['No', 'Nama', 'Email', 'Profesi', 'Pend.', 'Alumni', 'Status', 'Tgl Mohon', 'Masa SIP', 'Rekredensial', 'Thn Masuk', 'Masa Kerja']],
       body: tableBody,
       styles: { fontSize: 8 },
     });
@@ -501,6 +519,19 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
                 <option value="ALL" className="bg-slate-900">Semua Status</option>
                 {statusOptions.filter((s) => s !== 'ALL').map((s) => (
                   <option key={s} value={s} className="bg-slate-900">{s}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 max-w-[200px]">
+              <select
+                value={selectedAlumni}
+                onChange={(e) => setSelectedAlumni(e.target.value)}
+                className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full truncate"
+              >
+                <option value="ALL" className="bg-slate-900">Semua Alumni</option>
+                {alumniOptions.filter((a) => a !== 'ALL').map((a) => (
+                  <option key={a} value={a} className="bg-slate-900">{a}</option>
                 ))}
               </select>
             </div>
