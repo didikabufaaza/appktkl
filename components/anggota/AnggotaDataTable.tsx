@@ -141,7 +141,13 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
     return isolatedData.filter((item) => {
       const matchProfesi = selectedProfesi === 'ALL' || item.profesi === selectedProfesi;
       const matchStatus = selectedStatus === 'ALL' || item.statusKepegawaian === selectedStatus;
-      const matchAlumni = selectedAlumni === 'ALL' || item.asalPendidikan === selectedAlumni;
+      
+      const alumniQuery = String(selectedAlumni || '').trim().toLowerCase();
+      const matchAlumni =
+        selectedAlumni === 'ALL' ||
+        alumniQuery === '' ||
+        String(item.asalPendidikan || '').toLowerCase().includes(alumniQuery);
+
       return matchProfesi && matchStatus && matchAlumni;
     });
   }, [isolatedData, selectedProfesi, selectedStatus, selectedAlumni]);
@@ -523,17 +529,20 @@ export function AnggotaDataTable({ data, userSession, onEdit, onDelete }: Anggot
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 max-w-[200px]">
-              <select
-                value={selectedAlumni}
-                onChange={(e) => setSelectedAlumni(e.target.value)}
-                className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full truncate"
-              >
-                <option value="ALL" className="bg-slate-900">Semua Alumni</option>
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 max-w-[200px] relative">
+              <input
+                type="text"
+                list="alumni-list"
+                value={selectedAlumni === 'ALL' ? '' : selectedAlumni}
+                onChange={(e) => setSelectedAlumni(e.target.value || 'ALL')}
+                placeholder="Cari/Pilih Alumni"
+                className="bg-transparent text-xs text-slate-200 focus:outline-none w-full placeholder:text-slate-500"
+              />
+              <datalist id="alumni-list">
                 {alumniOptions.filter((a) => a !== 'ALL').map((a) => (
-                  <option key={a} value={a} className="bg-slate-900">{a}</option>
+                  <option key={a} value={a} />
                 ))}
-              </select>
+              </datalist>
             </div>
           </div>
         )}
