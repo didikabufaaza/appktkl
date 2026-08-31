@@ -86,11 +86,11 @@ export default function LoginPage() {
       <div className="w-full max-w-lg bg-slate-900/85 border border-blue-900/40 rounded-3xl p-8 shadow-2xl shadow-blue-950/50 relative z-10 backdrop-blur-2xl">
         {/* Top Header & Logo */}
         <div className="text-center mb-6">
-          <div className="inline-flex mb-4">
+          <div className="flex justify-center mb-4">
             <img 
-              src="/images/logo_komite.jpg" 
+              src="/images/logo_komite.png" 
               alt="Logo Komite" 
-              className="w-28 h-28 object-contain rounded-2xl shadow-xl bg-white p-1.5 border border-blue-500/30"
+              className="w-56 h-auto max-w-full object-contain filter drop-shadow-[0_4px_20px_rgba(56,189,248,0.25)]"
             />
           </div>
           <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-sky-200 to-cyan-300 tracking-tight">
