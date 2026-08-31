@@ -71,25 +71,29 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-blue-950 via-slate-950 to-sky-900 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Futuristic Background Image Layer */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 mix-blend-luminosity scale-105 transition-transform duration-10000"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 mix-blend-overlay scale-105 transition-transform duration-10000"
         style={{ backgroundImage: `url('/images/nakes_futuristic_bg.jpg')` }}
       />
 
       {/* Futuristic Ambient Sci-Fi Glows */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-gradient-to-tr from-emerald-500/20 via-teal-500/10 to-cyan-500/20 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-10 left-10 w-[350px] h-[350px] bg-blue-600/15 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-gradient-to-tr from-blue-600/25 via-sky-500/15 to-teal-500/20 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-10 left-10 w-[350px] h-[350px] bg-sky-500/20 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Main Glassmorphic Futuristic Card */}
-      <div className="w-full max-w-lg bg-slate-900/85 border border-slate-800/90 rounded-3xl p-8 shadow-2xl shadow-emerald-950/40 relative z-10 backdrop-blur-2xl">
+      <div className="w-full max-w-lg bg-slate-900/85 border border-blue-900/40 rounded-3xl p-8 shadow-2xl shadow-blue-950/50 relative z-10 backdrop-blur-2xl">
         {/* Top Header & Logo */}
         <div className="text-center mb-6">
-          <div className="inline-flex p-4 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 text-slate-950 shadow-xl shadow-emerald-500/25 mb-3 ring-4 ring-emerald-500/20">
-            <Hospital className="w-9 h-9" />
+          <div className="inline-flex mb-4">
+            <img 
+              src="/images/logo_komite.jpg" 
+              alt="Logo Komite" 
+              className="w-28 h-28 object-contain rounded-2xl shadow-xl bg-white p-1.5 border border-blue-500/30"
+            />
           </div>
-          <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 tracking-tight">
+          <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-sky-200 to-cyan-300 tracking-tight">
             KOMITE KTKL RSUD OKU TIMUR
           </h1>
           <p className="text-xs text-slate-400 font-medium mt-1">
@@ -238,7 +242,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-8 pt-4 border-t border-slate-800/80 text-center text-[11px] text-slate-500">
-          RSUD OKU TIMUR &copy; 2026 Komite Tenaga Kesehatan Lain. All Rights Reserved.
+          RSUD OKU TIMUR &copy; 2026 Komite Tenaga Kesehatan Lain. Created and Developed by Didik
         </div>
       </div>
     </div>
