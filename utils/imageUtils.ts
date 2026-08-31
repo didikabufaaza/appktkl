@@ -10,6 +10,11 @@ export function getMemberPhotoUrl(photoLink?: string, name?: string): string {
 
   const link = photoLink.trim();
 
+  // If base64 data URL
+  if (link.startsWith('data:')) {
+    return link;
+  }
+
   // If already a direct image URL or QR URL
   if (link.startsWith('http') && !link.includes('drive.google.com')) {
     return link;

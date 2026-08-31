@@ -15,11 +15,11 @@ export class GDriveRepository {
     const drive = getDriveClient();
 
     if (!drive) {
-      console.warn('Google Drive Service Account missing in ENV. Returning mock share link for preview.');
-      const mockId = `drive-mock-${Date.now()}`;
+      console.warn('Google Drive Service Account missing in ENV. Returning base64 data URL for preview.');
+      const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
       return {
-        fileId: mockId,
-        webViewLink: `https://drive.google.com/file/d/${mockId}/view?usp=drivesdk`,
+        fileId: `base64-mock-${Date.now()}`,
+        webViewLink: dataUrl,
       };
     }
 
@@ -66,10 +66,10 @@ export class GDriveRepository {
       return { fileId, webViewLink };
     } catch (error) {
       console.error('Error uploading file to Google Drive:', error);
-      const fallbackId = `drive-fallback-${Date.now()}`;
+      const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
       return {
-        fileId: fallbackId,
-        webViewLink: `https://drive.google.com/file/d/${fallbackId}/view?usp=drivesdk`,
+        fileId: `base64-fallback-${Date.now()}`,
+        webViewLink: dataUrl,
       };
     }
   }
