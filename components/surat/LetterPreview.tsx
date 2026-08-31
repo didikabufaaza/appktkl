@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Printer, Download, X } from 'lucide-react';
 import { SuratItem, KopSuratData } from '@/types/nakes';
+import { getMemberPhotoUrl } from '@/utils/imageUtils';
 
 interface LetterPreviewProps {
   letter: SuratItem;
@@ -100,7 +101,7 @@ export function LetterPreview({ letter, onClose }: LetterPreviewProps) {
             {/* Left Logo */}
             <div className="w-16 h-16 shrink-0 flex items-center justify-center overflow-hidden">
               {kop.logoKiriUrl ? (
-                <img src={kop.logoKiriUrl} alt="Logo Kiri" className="max-w-full max-h-full object-contain" />
+                <img src={getMemberPhotoUrl(kop.logoKiriUrl)} alt="Logo Kiri" className="max-w-full max-h-full object-contain" />
               ) : (
                 <div className="w-12 h-12 bg-slate-100 border border-slate-300 rounded-full flex items-center justify-center text-[10px] text-slate-400 font-mono">Logo</div>
               )}
@@ -125,7 +126,7 @@ export function LetterPreview({ letter, onClose }: LetterPreviewProps) {
             {/* Right Logo */}
             <div className="w-16 h-16 shrink-0 flex items-center justify-center overflow-hidden">
               {kop.logoKananUrl ? (
-                <img src={kop.logoKananUrl} alt="Logo Kanan" className="max-w-full max-h-full object-contain" />
+                <img src={getMemberPhotoUrl(kop.logoKananUrl)} alt="Logo Kanan" className="max-w-full max-h-full object-contain" />
               ) : (
                 <div className="w-12 h-12 bg-slate-100 border border-slate-300 rounded-full flex items-center justify-center text-[10px] text-slate-400 font-mono">Logo</div>
               )}

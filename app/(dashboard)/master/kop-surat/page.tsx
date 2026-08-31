@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Save, Upload, FileText, Globe } from 'lucide-react';
 import { KopSuratData } from '@/types/nakes';
+import { getMemberPhotoUrl } from '@/utils/imageUtils';
 
 export default function KopSuratPage() {
   const [data, setData] = useState<KopSuratData>({
@@ -124,7 +125,7 @@ export default function KopSuratPage() {
               {/* Left Logo */}
               <div className="w-16 h-16 shrink-0 flex items-center justify-center border border-dashed border-slate-300 rounded bg-slate-50 overflow-hidden">
                 {data.logoKiriUrl ? (
-                  <img src={data.logoKiriUrl} alt="Logo Kiri" className="max-w-full max-h-full object-contain" />
+                  <img src={getMemberPhotoUrl(data.logoKiriUrl)} alt="Logo Kiri" className="max-w-full max-h-full object-contain" />
                 ) : (
                   <span className="text-[10px] text-slate-400 text-center px-1 font-mono">Logo Kiri</span>
                 )}
@@ -149,7 +150,7 @@ export default function KopSuratPage() {
               {/* Right Logo */}
               <div className="w-16 h-16 shrink-0 flex items-center justify-center border border-dashed border-slate-300 rounded bg-slate-50 overflow-hidden">
                 {data.logoKananUrl ? (
-                  <img src={data.logoKananUrl} alt="Logo Kanan" className="max-w-full max-h-full object-contain" />
+                  <img src={getMemberPhotoUrl(data.logoKananUrl)} alt="Logo Kanan" className="max-w-full max-h-full object-contain" />
                 ) : (
                   <span className="text-[10px] text-slate-400 text-center px-1 font-mono">Logo Kanan</span>
                 )}
