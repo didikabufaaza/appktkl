@@ -74,7 +74,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-950 via-slate-950 to-sky-900 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Futuristic Background Image Layer */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 mix-blend-overlay scale-105 transition-transform duration-10000"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-80 scale-105 transition-transform duration-10000"
         style={{ backgroundImage: `url('/images/nakes_futuristic_bg.jpg')` }}
       />
 
