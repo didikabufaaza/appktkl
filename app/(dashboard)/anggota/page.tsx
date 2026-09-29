@@ -59,7 +59,7 @@ export default function AnggotaPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-xl font-extrabold text-slate-100 tracking-tight">
