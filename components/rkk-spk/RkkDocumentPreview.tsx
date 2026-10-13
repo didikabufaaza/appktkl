@@ -115,22 +115,25 @@ export function RkkDocumentPreview({
       } catch (e) {}
     }
 
-    // Kop Surat Texts (Font Arial / Helvetica)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    // Helper to print text perfectly centered without colliding with logos (safe zone 116mm)
+    const printCenteredFitted = (text: string, yPos: number, initialSize: number, isBold: boolean = false) => {
+      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+      let size = initialSize;
+      doc.setFontSize(size);
+      while (doc.getTextWidth(text) > 116 && size > 4.5) {
+        size -= 0.2;
+        doc.setFontSize(size);
+      }
+      doc.text(text, centerX, yPos, { align: 'center' });
+    };
+
+    // Kop Surat Texts (Font Arial / Helvetica, fitted cleanly without touching logos)
     doc.setTextColor(0, 0, 0);
-    doc.text(activeKop.pemda, centerX, 23, { align: 'center' });
-
-    doc.setFontSize(13);
-    doc.text(activeKop.namaRS, centerX, 28, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    printCenteredFitted(activeKop.pemda, 23, 9.5, true);
+    printCenteredFitted(activeKop.namaRS, 28, 13.5, true);
     doc.setTextColor(40, 40, 40);
-    doc.text(activeKop.alamatRS, centerX, 33, { align: 'center' });
-
-    doc.setFontSize(7);
-    doc.text(activeKop.kontakRS, centerX, 37, { align: 'center' });
+    printCenteredFitted(activeKop.alamatRS, 33, 6.2, false);
+    printCenteredFitted(activeKop.kontakRS, 36.8, 5.8, false);
 
     // Divider Line (From Left 30mm to Right 190mm)
     doc.setDrawColor(0, 0, 0);
@@ -139,45 +142,53 @@ export function RkkDocumentPreview({
     doc.setLineWidth(0.2);
     doc.line(marginLeft, 41, maxX, 41);
 
-    // Title
+    // Title (Font Arial 12)
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
+    doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
     doc.text('RINCIAN KEWENANGAN KLINIK (RKK) TENAGA KESEHATAN LAIN', centerX, 47, { align: 'center' });
-    doc.text('RSUD OKU TIMUR', centerX, 51.5, { align: 'center' });
+    doc.text('RSUD OKU TIMUR', centerX, 52.5, { align: 'center' });
 
-    let currentY = 56;
+    let currentY = 58;
 
     // Instructions: ONLY included if standard RKK (omitted completely for RKK Rekomendasi)
     if (!isRekomendasi) {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(12);
       doc.text('Petunjuk Pengisian:', marginLeft, currentY);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.text("Pemohon mengisi kolom 'DIMINTA' dan Sub-Komite Kredensial/Asesor mengisi kolom 'DISETUJUI'.", marginLeft, currentY + 3.5);
-      doc.text('Kode: M = Mandiri | DS = Dengan Supervisi | KET = Keterangan', marginLeft, currentY + 7);
-      currentY += 12;
+      doc.setFontSize(12);
+      const splitInstruksi = doc.splitTextToSize(
+        "Pemohon mengisi kolom 'DIMINTA' dan Sub-Komite Kredensial/Asesor mengisi kolom 'DISETUJUI'.",
+        printableWidth
+      );
+      doc.text(splitInstruksi, marginLeft, currentY + 5);
+      doc.text(
+        'Kode: M = Mandiri | DS = Dengan Supervisi | KET = Keterangan',
+        marginLeft,
+        currentY + 5 + splitInstruksi.length * 5
+      );
+      currentY += 12 + splitInstruksi.length * 5;
     }
 
-    // Member Info
+    // Member Info (Font Arial 12)
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(12);
     doc.text(`Profesi: ${rkk.profesi}`, marginLeft, currentY);
 
-    currentY += 4.5;
+    currentY += 5.5;
     doc.setFont('helvetica', 'bold');
     doc.text('Rincian Kewenangan Klinis', marginLeft, currentY);
 
-    currentY += 4;
+    currentY += 5;
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(12);
     doc.text(`Nama         : ${rkk.nama}`, marginLeft, currentY);
-    currentY += 4;
+    currentY += 5;
     doc.text(`Kualifikasi  : ${rkk.kualifikasi || '-'}`, marginLeft, currentY);
-    currentY += 4;
+    currentY += 5;
     doc.text(`Alumni       : ${rkk.alumni || '-'}`, marginLeft, currentY);
-    currentY += 3;
+    currentY += 4;
 
     // Table
     const tableBody = rkk.checklistData.map((row) => [
@@ -212,7 +223,7 @@ export function RkkDocumentPreview({
       body: tableBody,
       styles: {
         font: 'helvetica',
-        fontSize: 7.5,
+        fontSize: 9.5,
         cellPadding: 2,
         lineColor: [180, 180, 180],
         lineWidth: 0.1,
@@ -222,6 +233,7 @@ export function RkkDocumentPreview({
         textColor: [0, 0, 0],
         fontStyle: 'bold',
         font: 'helvetica',
+        fontSize: 9.5,
       },
       columnStyles: {
         0: { cellWidth: 8, halign: 'center' },
@@ -257,69 +269,69 @@ export function RkkDocumentPreview({
       },
     });
 
-    // Kesimpulan
+    // Kesimpulan (Font Arial 12)
     const kesimpulanText = getKesimpulanRkk(rkk.checklistData);
-    let tableFinalY = (doc as any).lastAutoTable.finalY + 4;
+    let tableFinalY = (doc as any).lastAutoTable.finalY + 5;
 
-    if (tableFinalY > pageHeight - 45) {
+    if (tableFinalY > pageHeight - 55) {
       doc.addPage();
       tableFinalY = 25;
     }
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(12);
     doc.text('Kesimpulan:', marginLeft, tableFinalY);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(12);
     const splitKesimpulan = doc.splitTextToSize(kesimpulanText, printableWidth);
-    doc.text(splitKesimpulan, marginLeft, tableFinalY + 4);
+    doc.text(splitKesimpulan, marginLeft, tableFinalY + 5.5);
 
-    // Signature Block
-    let signY = tableFinalY + 4 + splitKesimpulan.length * 3.5 + 4;
+    // Signature Block (Font Arial 12)
+    let signY = tableFinalY + 5.5 + splitKesimpulan.length * 5.2 + 6;
 
     if (isRekomendasi) {
-      // RKK Rekomendasi: ONLY 1 signature (Direktur RSUD OKU Timur, identical to SPK)
-      if (signY + 42 > pageHeight - 20) {
+      // RKK Rekomendasi: ONLY 1 signature (Direktur RSUD OKU Timur, identical to SPK, Arial 12)
+      if (signY + 50 > pageHeight - 20) {
         doc.addPage();
         signY = 25;
       }
 
-      const signX = 130;
+      const signX = 120;
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(12);
       doc.text(`DITETAPKAN DI : ${spk?.tempatDitetapkan || 'TULUS AYU'}`, signX, signY);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Pada Tanggal   : ${spk?.tanggalDitetapkan || rkk.tanggal}`, signX, signY + 4);
+      doc.text(`Pada Tanggal   : ${spk?.tanggalDitetapkan || rkk.tanggal}`, signX, signY + 5.5);
       doc.setFont('helvetica', 'bold');
-      doc.text('Direktur RSUD OKU Timur', signX, signY + 8.5);
-      doc.text(spk?.namaDirektur || 'dr. Sugihartono, M.Sc.', signX, signY + 28);
+      doc.text('Direktur RSUD OKU Timur', signX, signY + 11.5);
+      doc.text(spk?.namaDirektur || 'dr. Sugihartono, M.Sc.', signX, signY + 34);
       doc.setFont('helvetica', 'normal');
-      doc.text(spk?.pangkatDirektur || 'Penata TK. I/ III d', signX, signY + 32);
-      doc.text(`NIP. ${spk?.nipDirektur || '197606302005011003'}`, signX, signY + 36);
+      doc.text(spk?.pangkatDirektur || 'Penata TK. I/ III d', signX, signY + 39.5);
+      doc.text(`NIP. ${spk?.nipDirektur || '197606302005011003'}`, signX, signY + 45);
 
       doc.save(`RKK_Rekomendasi_${rkk.profesi.replace(/\s+/g, '_')}_${rkk.nama.replace(/\s+/g, '_')}.pdf`);
     } else {
-      // Standard RKK: 2 signatures (Pemohon & Asesor)
-      if (signY + 36 > pageHeight - 20) {
+      // Standard RKK: 2 signatures (Pemohon & Asesor, Arial 12)
+      if (signY + 45 > pageHeight - 20) {
         doc.addPage();
         signY = 25;
       }
 
-      const signXRight = 130;
+      const signXRight = 120;
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(12);
       doc.text(`OKU Timur, ${rkk.tanggal || '........................................'}`, signXRight, signY);
 
-      doc.text('Pemohon,', marginLeft + 5, signY + 6);
-      doc.text('Asesor,', signXRight, signY + 6);
+      doc.text('Pemohon,', marginLeft + 5, signY + 6.5);
+      doc.text('Asesor,', signXRight, signY + 6.5);
 
       doc.setFont('helvetica', 'bold');
-      doc.text(`( ${rkk.namaPemohon || rkk.nama} )`, marginLeft + 5, signY + 28);
-      doc.text(`( ${rkk.namaAsesor || '........................................'} )`, signXRight, signY + 28);
+      doc.text(`( ${rkk.namaPemohon || rkk.nama} )`, marginLeft + 5, signY + 34);
+      doc.text(`( ${rkk.namaAsesor || '........................................'} )`, signXRight, signY + 34);
       if (rkk.nipAsesor) {
         doc.setFont('helvetica', 'normal');
-        doc.text(`NIP. ${rkk.nipAsesor}`, signXRight, signY + 32);
+        doc.text(`NIP. ${rkk.nipAsesor}`, signXRight, signY + 39.5);
       }
 
       doc.save(`RKK_${rkk.profesi.replace(/\s+/g, '_')}_${rkk.nama.replace(/\s+/g, '_')}.pdf`);
@@ -399,7 +411,7 @@ export function RkkDocumentPreview({
           >
             {/* Kop Surat Header */}
             <div className="flex items-center justify-between border-b-[3px] border-double border-slate-900 pb-3 mb-4">
-              <div className="w-20 h-20 shrink-0 flex items-center justify-center">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center">
                 <img
                   src={logoKiriSrc}
                   alt="Logo Pemda OKU Timur"
@@ -407,14 +419,14 @@ export function RkkDocumentPreview({
                 />
               </div>
 
-              <div className="text-center flex-1 px-4 leading-tight">
-                <h2 className="text-xs md:text-sm font-bold uppercase tracking-wider">{activeKop.pemda}</h2>
-                <h1 className="text-base md:text-xl font-extrabold uppercase my-1">{activeKop.namaRS}</h1>
-                <p className="text-[10px] md:text-xs text-slate-700">{activeKop.alamatRS}</p>
-                <p className="text-[9px] md:text-[10px] text-slate-600 font-medium mt-0.5">{activeKop.kontakRS}</p>
+              <div className="text-center flex-1 px-2 sm:px-4 leading-tight max-w-[calc(100%-140px)] mx-auto overflow-hidden">
+                <h2 className="text-[10px] sm:text-xs md:text-sm font-bold uppercase tracking-wider">{activeKop.pemda}</h2>
+                <h1 className="text-sm sm:text-base md:text-lg font-extrabold uppercase my-0.5">{activeKop.namaRS}</h1>
+                <p className="text-[8px] sm:text-[9px] md:text-[9.5px] text-slate-700 leading-tight">{activeKop.alamatRS}</p>
+                <p className="text-[7.5px] sm:text-[8px] md:text-[8.5px] text-slate-600 font-medium mt-0.5 leading-tight">{activeKop.kontakRS}</p>
               </div>
 
-              <div className="w-20 h-20 shrink-0 flex items-center justify-center">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center">
                 <img
                   src={logoKananSrc}
                   alt="Logo RSUD OKU Timur"
@@ -423,17 +435,17 @@ export function RkkDocumentPreview({
               </div>
             </div>
 
-            {/* Document Title */}
+            {/* Document Title (Font Arial 12) */}
             <div className="text-center my-4 leading-snug">
-              <h2 className="text-sm md:text-base font-extrabold uppercase tracking-wide">
+              <h2 className="text-[12pt] font-extrabold uppercase tracking-wide">
                 RINCIAN KEWENANGAN KLINIK (RKK) TENAGA KESEHATAN LAIN
               </h2>
-              <h3 className="text-sm md:text-base font-extrabold uppercase tracking-wide">RSUD OKU TIMUR</h3>
+              <h3 className="text-[12pt] font-extrabold uppercase tracking-wide">RSUD OKU TIMUR</h3>
             </div>
 
-            {/* Instructions: ONLY if not rekomendasi */}
+            {/* Instructions: ONLY if not rekomendasi (Font Arial 12) */}
             {!isRekomendasi && (
-              <div className="text-xs mb-4">
+              <div className="text-[12pt] leading-normal mb-4">
                 <p className="font-bold">Petunjuk Pengisian:</p>
                 <p className="italic text-slate-700">
                   Pemohon mengisi kolom &apos;DIMINTA&apos; dan Sub-Komite Kredensial/Asesor mengisi kolom &apos;DISETUJUI&apos;.
@@ -442,22 +454,22 @@ export function RkkDocumentPreview({
               </div>
             )}
 
-            {/* Profile Header */}
-            <div className="text-xs space-y-1 mb-4">
-              <div className="font-bold text-sm">Profesi: {rkk.profesi}</div>
+            {/* Profile Header (Font Arial 12) */}
+            <div className="text-[12pt] leading-normal space-y-1 mb-4">
+              <div className="font-bold">Profesi: {rkk.profesi}</div>
               <div className="font-bold">Rincian Kewenangan Klinis</div>
               <div className="grid grid-cols-12 gap-1 pt-1">
-                <span className="col-span-2">Nama</span>
-                <span className="col-span-10">: {rkk.nama}</span>
-                <span className="col-span-2">Kualifikasi</span>
-                <span className="col-span-10">: {rkk.kualifikasi || '-'}</span>
-                <span className="col-span-2">Alumni</span>
-                <span className="col-span-10">: {rkk.alumni || '-'}</span>
+                <span className="col-span-3 sm:col-span-2">Nama</span>
+                <span className="col-span-9 sm:col-span-10">: {rkk.nama}</span>
+                <span className="col-span-3 sm:col-span-2">Kualifikasi</span>
+                <span className="col-span-9 sm:col-span-10">: {rkk.kualifikasi || '-'}</span>
+                <span className="col-span-3 sm:col-span-2">Alumni</span>
+                <span className="col-span-9 sm:col-span-10">: {rkk.alumni || '-'}</span>
               </div>
             </div>
 
             {/* Competency Table */}
-            <table className="w-full text-xs border-collapse border border-slate-400 mb-5">
+            <table className="w-full text-xs sm:text-[11px] border-collapse border border-slate-400 mb-5">
               <thead>
                 <tr className="bg-slate-100 font-bold text-center border-b border-slate-400">
                   <th rowSpan={2} className="border border-slate-400 px-2 py-2 w-10">
@@ -476,7 +488,7 @@ export function RkkDocumentPreview({
                     KET
                   </th>
                 </tr>
-                <tr className="bg-slate-100 font-bold text-center border-b border-slate-400 text-[11px]">
+                <tr className="bg-slate-100 font-bold text-center border-b border-slate-400 text-[10px]">
                   <th className="border border-slate-400 px-2 py-1 w-12">M</th>
                   <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
                   <th className="border border-slate-400 px-2 py-1 w-12">M</th>
@@ -524,7 +536,7 @@ export function RkkDocumentPreview({
                         ''
                       )}
                     </td>
-                    <td className="border border-slate-400 px-2 py-2 text-center text-[11px] text-slate-600">
+                    <td className="border border-slate-400 px-2 py-2 text-center text-[10px] text-slate-600">
                       {row.ket || ''}
                     </td>
                   </tr>
@@ -532,19 +544,19 @@ export function RkkDocumentPreview({
               </tbody>
             </table>
 
-            {/* Kesimpulan Section */}
-            <div className="mb-6 text-xs">
+            {/* Kesimpulan Section (Font Arial 12) */}
+            <div className="mb-6 text-[12pt] leading-normal">
               <p className="font-bold mb-1 text-slate-900 uppercase tracking-wide">Kesimpulan:</p>
               <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 leading-relaxed font-medium text-justify">
                 {getKesimpulanRkk(rkk.checklistData)}
               </div>
             </div>
 
-            {/* Date & Signatures */}
+            {/* Date & Signatures (Font Arial 12) */}
             {isRekomendasi ? (
-              /* RKK Rekomendasi: Only 1 Direktur signature, identical to SPK */
-              <div className="pt-6 text-xs flex justify-end">
-                <div className="w-64 space-y-1 text-left">
+              /* RKK Rekomendasi: Only 1 Direktur signature, identical to SPK (Arial 12) */
+              <div className="pt-6 text-[12pt] leading-normal flex justify-end">
+                <div className="w-72 space-y-1 text-left">
                   <p className="font-bold">DITETAPKAN DI : {spk?.tempatDitetapkan || 'TULUS AYU'}</p>
                   <p className="pb-1">Pada Tanggal : {spk?.tanggalDitetapkan || rkk.tanggal}</p>
                   <p className="font-bold">Direktur RSUD OKU Timur</p>
@@ -555,8 +567,8 @@ export function RkkDocumentPreview({
                 </div>
               </div>
             ) : (
-              /* Standard RKK: 2 signatures (Pemohon & Asesor) */
-              <div className="pt-2 text-xs">
+              /* Standard RKK: 2 signatures (Pemohon & Asesor, Arial 12) */
+              <div className="pt-2 text-[12pt] leading-normal">
                 <div className="text-right mb-4">OKU Timur, {rkk.tanggal || '........................................'}</div>
                 <div className="flex justify-between items-start">
                   <div className="text-left w-64">
@@ -569,7 +581,7 @@ export function RkkDocumentPreview({
                     <p>Asesor,</p>
                     <div className="h-20"></div>
                     <p className="font-bold underline">( {rkk.namaAsesor || '........................................'} )</p>
-                    {rkk.nipAsesor && <p className="text-[11px] text-slate-600 font-mono">NIP. {rkk.nipAsesor}</p>}
+                    {rkk.nipAsesor && <p className="text-sm text-slate-600 font-mono">NIP. {rkk.nipAsesor}</p>}
                   </div>
                 </div>
               </div>

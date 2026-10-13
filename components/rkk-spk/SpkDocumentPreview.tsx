@@ -30,6 +30,7 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
   const handleDownloadPdf = async () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = 210;
+    const pageHeight = 297;
 
     // Load Logos
     const loadImage = (url: string): Promise<string | null> => {
@@ -96,22 +97,25 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
       } catch (e) {}
     }
 
-    // Kop Surat (Font Arial / Helvetica)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    // Helper to print text perfectly centered without colliding with logos (safe zone 116mm)
+    const printCenteredFitted = (text: string, yPos: number, initialSize: number, isBold: boolean = false) => {
+      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+      let size = initialSize;
+      doc.setFontSize(size);
+      while (doc.getTextWidth(text) > 116 && size > 4.5) {
+        size -= 0.2;
+        doc.setFontSize(size);
+      }
+      doc.text(text, centerX, yPos, { align: 'center' });
+    };
+
+    // Kop Surat Texts (Font Arial / Helvetica, fitted cleanly without touching logos)
     doc.setTextColor(0, 0, 0);
-    doc.text(activeKop.pemda, centerX, 23, { align: 'center' });
-
-    doc.setFontSize(13);
-    doc.text(activeKop.namaRS, centerX, 28, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    printCenteredFitted(activeKop.pemda, 23, 9.5, true);
+    printCenteredFitted(activeKop.namaRS, 28, 13.5, true);
     doc.setTextColor(40, 40, 40);
-    doc.text(activeKop.alamatRS, centerX, 33, { align: 'center' });
-
-    doc.setFontSize(7);
-    doc.text(activeKop.kontakRS, centerX, 37, { align: 'center' });
+    printCenteredFitted(activeKop.alamatRS, 33, 6.2, false);
+    printCenteredFitted(activeKop.kontakRS, 36.8, 5.8, false);
 
     // Lines
     doc.setDrawColor(0, 0, 0);
@@ -123,18 +127,18 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
     // Title Keputusan
     let y = 47;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(12);
     doc.text('KEPUTUSAN', centerX, y, { align: 'center' });
     y += 5;
     doc.text('DIREKTUR RSUD OKU TIMUR', centerX, y, { align: 'center' });
     y += 5;
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
+    doc.setFontSize(11);
     doc.text(`Nomor : ${spk.nomorSurat}`, centerX, y, { align: 'center' });
 
     y += 6;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
+    doc.setFontSize(11);
     doc.text('Tentang', centerX, y, { align: 'center' });
     y += 4.5;
     doc.text('Surat penugasan Klinis dan Rincian Kewenangan Klinis', centerX, y, { align: 'center' });
@@ -144,10 +148,10 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
     y += 6;
     doc.text('DIREKTUR RSUD OKU TIMUR', centerX, y, { align: 'center' });
 
-    // Menimbang
+    // Menimbang (Font Arial 12)
     y += 6.5;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(12);
     doc.text('Menimbang  :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const menimbangText = `Bahwa untuk mendukung terwujudnya pelayanan ${
@@ -155,45 +159,47 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
     } yang optimal dan meningkatkan keselamatan pasien, perlu ditetapkan surat penugasan klinis dengan rincian kewenangan klinis.`;
     const splitMenimbang = doc.splitTextToSize(menimbangText, contentWidth);
     doc.text(splitMenimbang, contentIndentX, y);
-    y += splitMenimbang.length * 4.2 + 3;
+    y += splitMenimbang.length * 5.2 + 3;
 
-    // MEMUTUSKAN
+    // MEMUTUSKAN (Font Arial 12)
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
     doc.text('MEMUTUSKAN', centerX, y, { align: 'center' });
-    y += 5.5;
+    y += 6.5;
 
-    // Diktum KESATU
+    // Diktum KESATU (Font Arial 12)
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
     doc.text('KESATU       :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     doc.text(`Nama         : ${spk.nama} ${spk.gelar || ''}`, contentIndentX, y);
-    y += 4.2;
+    y += 5.2;
     doc.text(`Kualifikasi  : ${spk.kualifikasi || spk.profesi}`, contentIndentX, y);
-    y += 4.2;
+    y += 5.2;
     const diktum1 = `Mendapat Surat Penugasan Klinik dengan rincian kewenangan klinis dilingkungan RSUD OKU Timur sebagai seorang ${spk.profesi}.`;
     const splitDiktum1 = doc.splitTextToSize(diktum1, contentWidth);
     doc.text(splitDiktum1, contentIndentX, y);
-    y += splitDiktum1.length * 4.2 + 2.5;
+    y += splitDiktum1.length * 5.2 + 3;
 
-    // Diktum KEDUA
+    // Diktum KEDUA (Font Arial 12)
     doc.setFont('helvetica', 'bold');
     doc.text('KEDUA       :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const diktum2 = `Surat Penugasan klinik ini memberikan hak kepada ybs melaksanakan kegiatan profesinya dilingkungan RSUD OKU Timur sesuai dengan Rincian Kewenangan Klinis (terlampir).`;
     const splitDiktum2 = doc.splitTextToSize(diktum2, contentWidth);
     doc.text(splitDiktum2, contentIndentX, y);
-    y += splitDiktum2.length * 4.2 + 2.5;
+    y += splitDiktum2.length * 5.2 + 3;
 
-    // Diktum KETIGA
+    // Diktum KETIGA (Font Arial 12)
     doc.setFont('helvetica', 'bold');
     doc.text('KETIGA      :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const diktum3 = `Rincian Kewenangan Klinis dapat dikurangi atau ditambah atas rekomendasi Komite Tenaga Kesehatan Profesi lain cq. Sub Komite Kredensial.`;
     const splitDiktum3 = doc.splitTextToSize(diktum3, contentWidth);
     doc.text(splitDiktum3, contentIndentX, y);
-    y += splitDiktum3.length * 4.2 + 2.5;
+    y += splitDiktum3.length * 5.2 + 3;
 
-    // Diktum KEEMPAT
+    // Diktum KEEMPAT (Font Arial 12)
     doc.setFont('helvetica', 'bold');
     doc.text('KEEMPAT    :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
@@ -202,34 +208,38 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
     } dan tidak akan melebihi masa berlaku STR ybs.`;
     const splitDiktum4 = doc.splitTextToSize(diktum4, contentWidth);
     doc.text(splitDiktum4, contentIndentX, y);
-    y += splitDiktum4.length * 4.2 + 2.5;
+    y += splitDiktum4.length * 5.2 + 3;
 
-    // Diktum KELIMA
+    // Diktum KELIMA (Font Arial 12)
     doc.setFont('helvetica', 'bold');
     doc.text('KELIMA      :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const diktum5 = `Keputusan ini berlaku sejak tanggal ditetapkan, bila kemudian hari diketemukan kekeliruan akan diadakan perbaikan sebagaimana mestinya.`;
     const splitDiktum5 = doc.splitTextToSize(diktum5, contentWidth);
     doc.text(splitDiktum5, contentIndentX, y);
-    y += splitDiktum5.length * 4.2 + 6;
+    y += splitDiktum5.length * 5.2 + 6;
 
-    // Signature Block (Right Aligned Direktur)
-    const signX = 130;
+    // Signature Block (Right Aligned Direktur, Font Arial 12)
+    if (y + 48 > pageHeight - 20) {
+      doc.addPage();
+      y = 25;
+    }
+    const signX = 120;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(12);
     doc.text(`DITETAPKAN DI : ${spk.tempatDitetapkan || 'TULUS AYU'}`, signX, y);
-    y += 4;
+    y += 5.5;
     doc.setFont('helvetica', 'normal');
     doc.text(`Pada Tanggal   : ${spk.tanggalDitetapkan}`, signX, y);
-    y += 5;
+    y += 6;
     doc.setFont('helvetica', 'bold');
     doc.text('Direktur RSUD OKU Timur', signX, y);
     y += 24;
     doc.text(spk.namaDirektur || 'dr. Sugihartono, M.Sc.', signX, y);
-    y += 4;
+    y += 5.5;
     doc.setFont('helvetica', 'normal');
     doc.text(spk.pangkatDirektur || 'Penata TK. I/ III d', signX, y);
-    y += 4;
+    y += 5.5;
     doc.text(`NIP. ${spk.nipDirektur || '197606302005011003'}`, signX, y);
 
     doc.save(`SPK_${spk.profesi.replace(/\s+/g, '_')}_${spk.nama.replace(/\s+/g, '_')}.pdf`);
@@ -308,7 +318,7 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
           >
             {/* Kop Surat Header */}
             <div className="flex items-center justify-between border-b-[3px] border-double border-slate-900 pb-3 mb-6">
-              <div className="w-20 h-20 shrink-0 flex items-center justify-center">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center">
                 <img
                   src={logoKiriSrc}
                   alt="Logo Pemda OKU Timur"
@@ -316,14 +326,14 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
                 />
               </div>
 
-              <div className="text-center flex-1 px-4 leading-tight">
-                <h2 className="text-xs md:text-sm font-bold uppercase tracking-wider">{activeKop.pemda}</h2>
-                <h1 className="text-base md:text-xl font-extrabold uppercase my-1">{activeKop.namaRS}</h1>
-                <p className="text-[10px] md:text-xs text-slate-700">{activeKop.alamatRS}</p>
-                <p className="text-[9px] md:text-[10px] text-slate-600 font-medium mt-0.5">{activeKop.kontakRS}</p>
+              <div className="text-center flex-1 px-2 sm:px-4 leading-tight max-w-[calc(100%-140px)] mx-auto overflow-hidden">
+                <h2 className="text-[10px] sm:text-xs md:text-sm font-bold uppercase tracking-wider">{activeKop.pemda}</h2>
+                <h1 className="text-sm sm:text-base md:text-lg font-extrabold uppercase my-0.5">{activeKop.namaRS}</h1>
+                <p className="text-[8px] sm:text-[9px] md:text-[9.5px] text-slate-700 leading-tight">{activeKop.alamatRS}</p>
+                <p className="text-[7.5px] sm:text-[8px] md:text-[8.5px] text-slate-600 font-medium mt-0.5 leading-tight">{activeKop.kontakRS}</p>
               </div>
 
-              <div className="w-20 h-20 shrink-0 flex items-center justify-center">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center">
                 <img
                   src={logoKananSrc}
                   alt="Logo RSUD OKU Timur"
@@ -332,42 +342,42 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
               </div>
             </div>
 
-            {/* Keputusan Header */}
-            <div className="text-center space-y-1 mb-6">
-              <h2 className="text-sm md:text-base font-bold uppercase tracking-wider">KEPUTUSAN</h2>
-              <h3 className="text-sm md:text-base font-bold uppercase tracking-wider">DIREKTUR RSUD OKU TIMUR</h3>
-              <p className="text-xs font-mono font-medium pt-1">Nomor : {spk.nomorSurat}</p>
+            {/* Keputusan Header (Font Arial 12) */}
+            <div className="text-center space-y-1 mb-6 text-[12pt] leading-normal">
+              <h2 className="font-bold uppercase tracking-wider">KEPUTUSAN</h2>
+              <h3 className="font-bold uppercase tracking-wider">DIREKTUR RSUD OKU TIMUR</h3>
+              <p className="font-mono font-medium pt-1">Nomor : {spk.nomorSurat}</p>
 
               <div className="pt-3">
-                <p className="text-xs font-bold uppercase">Tentang</p>
-                <p className="text-xs font-bold">Surat penugasan Klinis dan Rincian Kewenangan Klinis</p>
-                <p className="text-xs font-bold">RSUD OKU Timur</p>
+                <p className="font-bold uppercase">Tentang</p>
+                <p className="font-bold">Surat penugasan Klinis dan Rincian Kewenangan Klinis</p>
+                <p className="font-bold">RSUD OKU Timur</p>
               </div>
 
               <div className="pt-4">
-                <h4 className="text-xs font-extrabold uppercase">DIREKTUR RSUD OKU TIMUR</h4>
+                <h4 className="font-extrabold uppercase">DIREKTUR RSUD OKU TIMUR</h4>
               </div>
             </div>
 
-            {/* Menimbang */}
-            <div className="grid grid-cols-12 gap-2 text-xs mb-4 text-justify">
-              <span className="col-span-2 font-bold">Menimbang</span>
+            {/* Menimbang (Font Arial 12) */}
+            <div className="grid grid-cols-12 gap-2 text-[12pt] mb-4 text-justify leading-relaxed">
+              <span className="col-span-3 sm:col-span-2 font-bold">Menimbang</span>
               <span className="col-span-1 text-center font-bold">:</span>
-              <p className="col-span-9">
+              <p className="col-span-8 sm:col-span-9">
                 Bahwa untuk mendukung terwujudnya pelayanan {pelayanan} yang optimal dan meningkatkan keselamatan pasien,
                 perlu ditetapkan surat penugasan klinis dengan rincian kewenangan klinis.
               </p>
             </div>
 
-            {/* MEMUTUSKAN */}
-            <div className="text-center font-bold text-xs my-4 uppercase tracking-widest">MEMUTUSKAN</div>
+            {/* MEMUTUSKAN (Font Arial 12) */}
+            <div className="text-center font-bold text-[12pt] my-5 uppercase tracking-widest">MEMUTUSKAN</div>
 
-            {/* Diktum */}
-            <div className="space-y-3 text-xs text-justify">
+            {/* Diktum (Font Arial 12) */}
+            <div className="space-y-4 text-[12pt] text-justify leading-relaxed">
               <div className="grid grid-cols-12 gap-2">
-                <span className="col-span-2 font-bold">PERTAMA</span>
+                <span className="col-span-3 sm:col-span-2 font-bold">PERTAMA</span>
                 <span className="col-span-1 text-center font-bold">:</span>
-                <div className="col-span-9 space-y-1">
+                <div className="col-span-8 sm:col-span-9 space-y-1">
                   <p>
                     Nama : <strong className="font-semibold">{namaLengkap}</strong> &nbsp; Kualifikasi :{' '}
                     <strong className="font-semibold">{spk.kualifikasi || spk.profesi}</strong>
@@ -380,45 +390,45 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
               </div>
 
               <div className="grid grid-cols-12 gap-2">
-                <span className="col-span-2 font-bold">KEDUA</span>
+                <span className="col-span-3 sm:col-span-2 font-bold">KEDUA</span>
                 <span className="col-span-1 text-center font-bold">:</span>
-                <p className="col-span-9">
+                <p className="col-span-8 sm:col-span-9">
                   Surat Penugasan klinik ini memberikan hak kepada ybs melaksanakan kegiatan profesinya dilingkungan RSUD
                   OKU Timur sesuai dengan Rincian Kewenangan Klinis (terlampir)
                 </p>
               </div>
 
               <div className="grid grid-cols-12 gap-2">
-                <span className="col-span-2 font-bold">KETIGA</span>
+                <span className="col-span-3 sm:col-span-2 font-bold">KETIGA</span>
                 <span className="col-span-1 text-center font-bold">:</span>
-                <p className="col-span-9">
+                <p className="col-span-8 sm:col-span-9">
                   Rincian Kewenangan Klinis dapat dikurangi atau ditambah atas rekomendasi Komite Tenaga Kesehatan Profesi
                   lain cq. Sub Komite Kredensial
                 </p>
               </div>
 
               <div className="grid grid-cols-12 gap-2">
-                <span className="col-span-2 font-bold">KEEMPAT</span>
+                <span className="col-span-3 sm:col-span-2 font-bold">KEEMPAT</span>
                 <span className="col-span-1 text-center font-bold">:</span>
-                <p className="col-span-9">
+                <p className="col-span-8 sm:col-span-9">
                   Surat penugasan klinis {spk.profesi} berlaku untuk jangka waktu{' '}
                   {spk.masaBerlakuTahun || '3 (tiga) tahun'} dan tidak akan melebihi masa berlaku STR ybs.
                 </p>
               </div>
 
               <div className="grid grid-cols-12 gap-2">
-                <span className="col-span-2 font-bold">KELIMA</span>
+                <span className="col-span-3 sm:col-span-2 font-bold">KELIMA</span>
                 <span className="col-span-1 text-center font-bold">:</span>
-                <p className="col-span-9">
+                <p className="col-span-8 sm:col-span-9">
                   Keputusan ini berlaku sejak tanggal ditetapkan, bila kemudian hari diketemukan kekeliruan akan diadakan
                   perbaikan sebagaimana mestinya.
                 </p>
               </div>
             </div>
 
-            {/* Signature Block */}
-            <div className="pt-8 text-xs flex justify-end">
-              <div className="w-64 space-y-1">
+            {/* Signature Block (Font Arial 12) */}
+            <div className="pt-8 text-[12pt] flex justify-end leading-normal">
+              <div className="w-72 space-y-1">
                 <p className="font-bold">DITETAPKAN DI : {spk.tempatDitetapkan || 'TULUS AYU'}</p>
                 <p className="pb-2">Pada Tanggal : {spk.tanggalDitetapkan}</p>
                 <p className="font-bold">Direktur RSUD OKU Timur</p>

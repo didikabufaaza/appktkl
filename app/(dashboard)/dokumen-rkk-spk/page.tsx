@@ -90,6 +90,8 @@ export default function DokumenRkkSpkPage() {
   const [singleNomorSurat, setSingleNomorSurat] = useState(
     `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`
   );
+  const [customProfesiInput, setCustomProfesiInput] = useState('');
+  const [newCompetencyItemText, setNewCompetencyItemText] = useState('');
 
   // Searchable Member Picker States for Tab 3
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
@@ -233,8 +235,36 @@ export default function DokumenRkkSpkPage() {
     setSelectedMemberIds(matching.map((m) => m.id));
   }, [bulkProfesi, members]);
 
+  // List of all distinct professions available in the app (both predefined & registered)
+  const availableProfessionsList = useMemo(() => {
+    const set = new Set<string>();
+    Object.keys(RKK_COMPETENCY_MAP).forEach((k) => set.add(k));
+    members.forEach((m) => {
+      if (m.profesi && m.profesi.trim()) {
+        set.add(m.profesi.trim().toUpperCase());
+      }
+    });
+    return Array.from(set).sort();
+  }, [members]);
+
   // Update single checklist when single profession changes
   useEffect(() => {
+    if (singleProfesi === 'LAINNYA') {
+      if (singleChecklist.length === 0) {
+        setSingleChecklist([
+          {
+            no: 1,
+            kompetensi: 'Melakukan tindakan pelayanan profesi sesuai standar kompetensi dan SPO',
+            dimintaM: true,
+            dimintaDS: false,
+            disetujuiM: true,
+            disetujuiDS: false,
+            ket: '',
+          },
+        ]);
+      }
+      return;
+    }
     const { items } = getCompetenciesByProfesi(singleProfesi);
     setSingleChecklist(
       items.map((it) => ({
@@ -248,6 +278,32 @@ export default function DokumenRkkSpkPage() {
       }))
     );
   }, [singleProfesi]);
+
+  // Add custom competency row manually
+  const handleAddCustomCompetencyRow = () => {
+    if (!newCompetencyItemText.trim()) return;
+    const newRow: RkkChecklistRow = {
+      no: singleChecklist.length + 1,
+      kompetensi: newCompetencyItemText.trim(),
+      dimintaM: true,
+      dimintaDS: false,
+      disetujuiM: true,
+      disetujuiDS: false,
+      ket: '',
+    };
+    setSingleChecklist((prev) => [...prev, newRow]);
+    setNewCompetencyItemText('');
+    toast.success('Butir kompetensi berhasil ditambahkan.');
+  };
+
+  // Delete a single row from checklist
+  const handleDeleteSingleRow = (indexToDelete: number) => {
+    setSingleChecklist((prev) =>
+      prev
+        .filter((_, idx) => idx !== indexToDelete)
+        .map((row, idx) => ({ ...row, no: idx + 1 }))
+    );
+  };
 
   // Filtered members for Searchable Combobox in Tab 3
   const candidateMembersForSingle = useMemo(() => {
@@ -393,6 +449,9 @@ export default function DokumenRkkSpkPage() {
       return;
     }
 
+    const finalProfesi =
+      (singleProfesi === 'LAINNYA' ? customProfesiInput.trim() : singleProfesi) || 'Nakes';
+
     setSubmitting(true);
     try {
       const rkkId = `RKK-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -403,7 +462,7 @@ export default function DokumenRkkSpkPage() {
         memberId: singleMemberId,
         nama: singleNama,
         nip: singleNip,
-        profesi: singleProfesi,
+        profesi: finalProfesi,
         kualifikasi: singleKualifikasi,
         alumni: singleAlumni,
         checklistData: singleChecklist,
@@ -421,9 +480,9 @@ export default function DokumenRkkSpkPage() {
         nomorSurat: singleNomorSurat,
         nama: singleNama,
         gelar: singleGelar,
-        kualifikasi: singleKualifikasi || singleProfesi,
-        profesi: singleProfesi,
-        pelayanan: singlePelayanan || singleProfesi,
+        kualifikasi: singleKualifikasi || finalProfesi,
+        profesi: finalProfesi,
+        pelayanan: singlePelayanan || finalProfesi,
         masaBerlakuTahun: '3 (tiga) tahun',
         tanggalDitetapkan: singleTanggal,
         tempatDitetapkan: 'TULUS AYU',
@@ -667,7 +726,7 @@ export default function DokumenRkkSpkPage() {
                 }`}
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Buat Individual</span>
+                <span>Tambah RKK Baru</span>
               </button>
             </>
           )}
@@ -679,7 +738,7 @@ export default function DokumenRkkSpkPage() {
       {/* ========================================================================= */}
       {activeTab === 'daftar' && (
         <div className="space-y-4">
-          {/* Toolbar Search & Filter */}
+          {/* Toolbar Search & Filter & Add Button */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -692,7 +751,27 @@ export default function DokumenRkkSpkPage() {
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Prominent Button to add new RKK directly */}
+              {userSession?.role !== 'user' && (
+                <button
+                  onClick={() => {
+                    setSingleMemberId('');
+                    setSingleNama('');
+                    setSingleNip('');
+                    setSingleKualifikasi('');
+                    setSingleAlumni('');
+                    setMemberSearchTerm('');
+                    setActiveTab('baru');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition shrink-0"
+                  title="Tambah Dokumen RKK & SPK Baru untuk Semua Profesi"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah RKK Baru</span>
+                </button>
+              )}
+
               <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
                 <Filter className="w-3.5 h-3.5 text-slate-400" />
                 <select
@@ -1495,16 +1574,50 @@ export default function DokumenRkkSpkPage() {
               <label className="block text-slate-300 font-bold mb-1.5">Rumpun Profesi:</label>
               <select
                 value={singleProfesi}
-                onChange={(e) => setSingleProfesi(e.target.value)}
+                onChange={(e) => {
+                  setSingleProfesi(e.target.value);
+                  if (e.target.value !== 'LAINNYA') {
+                    setCustomProfesiInput('');
+                  }
+                }}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
               >
-                {Object.keys(RKK_COMPETENCY_MAP).map((k) => (
-                  <option key={k} value={k}>
-                    {RKK_COMPETENCY_MAP[k].label}
-                  </option>
-                ))}
+                <optgroup label="Standar RKK Profesi (RSUD OKU Timur)">
+                  {Object.keys(RKK_COMPETENCY_MAP).map((k) => (
+                    <option key={k} value={k}>
+                      {RKK_COMPETENCY_MAP[k].label}
+                    </option>
+                  ))}
+                </optgroup>
+                {availableProfessionsList.filter((p) => !RKK_COMPETENCY_MAP[p]).length > 0 && (
+                  <optgroup label="Profesi Anggota Lainnya">
+                    {availableProfessionsList
+                      .filter((p) => !RKK_COMPETENCY_MAP[p])
+                      .map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+                <option value="LAINNYA" className="text-amber-400 font-bold">
+                  + Profesi Lainnya (Ketik Manual)...
+                </option>
               </select>
             </div>
+
+            {singleProfesi === 'LAINNYA' && (
+              <div>
+                <label className="block text-amber-400 font-bold mb-1.5">Nama Profesi Baru (Manual):</label>
+                <input
+                  type="text"
+                  value={customProfesiInput}
+                  onChange={(e) => setCustomProfesiInput(e.target.value)}
+                  placeholder="Ketik nama profesi baru..."
+                  className="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-400 font-bold"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-slate-300 font-bold mb-1.5">NIP / Nomor Anggota:</label>
@@ -1562,11 +1675,11 @@ export default function DokumenRkkSpkPage() {
 
           {/* Competency Checklist Table for Single */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h3 className="text-xs font-bold text-slate-200">
-                Tabel Ceklis Kewenangan Klinis ({RKK_COMPETENCY_MAP[singleProfesi]?.label || singleProfesi}):
+                Tabel Ceklis Kewenangan Klinis ({singleProfesi === 'LAINNYA' ? (customProfesiInput || 'Profesi Baru') : (RKK_COMPETENCY_MAP[singleProfesi]?.label || singleProfesi)}):
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={() =>
@@ -1593,14 +1706,14 @@ export default function DokumenRkkSpkPage() {
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950">
-              <table className="w-full text-left text-xs min-w-[650px]">
+              <table className="w-full text-left text-xs min-w-[700px]">
                 <thead className="bg-slate-900 text-slate-300 font-bold uppercase text-[11px] border-b border-slate-800">
                   <tr>
                     <th rowSpan={2} className="px-3 py-2 w-8 text-center">
                       No
                     </th>
                     <th rowSpan={2} className="px-4 py-2">
-                      Rincian Kewenangan Klinis
+                      Rincian Kewenangan Klinis (Dapat Diedit)
                     </th>
                     <th colSpan={2} className="px-2 py-1 text-center border-l border-slate-800">
                       DIMINTA
@@ -1610,6 +1723,9 @@ export default function DokumenRkkSpkPage() {
                     </th>
                     <th rowSpan={2} className="px-3 py-2 w-28 text-center border-l border-slate-800">
                       KET
+                    </th>
+                    <th rowSpan={2} className="px-2 py-2 w-10 text-center border-l border-slate-800">
+                      Aksi
                     </th>
                   </tr>
                   <tr className="bg-slate-900 text-slate-400 text-[10px]">
@@ -1623,7 +1739,19 @@ export default function DokumenRkkSpkPage() {
                   {singleChecklist.map((row, idx) => (
                     <tr key={row.no} className="hover:bg-slate-900/40 transition">
                       <td className="px-3 py-2 text-center text-slate-400">{row.no}</td>
-                      <td className="px-4 py-2 font-medium">{row.kompetensi}</td>
+                      <td className="px-3 py-1.5 font-medium">
+                        <input
+                          type="text"
+                          value={row.kompetensi}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSingleChecklist((prev) =>
+                              prev.map((r, i) => (i === idx ? { ...r, kompetensi: val } : r))
+                            );
+                          }}
+                          className="w-full bg-transparent border border-transparent hover:border-slate-800 focus:border-emerald-500 focus:bg-slate-900 rounded px-2 py-1 text-xs text-slate-100 transition focus:outline-none"
+                        />
+                      </td>
 
                       <td className="px-2 py-2 text-center border-l border-slate-800">
                         <input
@@ -1699,10 +1827,47 @@ export default function DokumenRkkSpkPage() {
                           className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-center text-[11px] text-slate-300 focus:outline-none"
                         />
                       </td>
+
+                      <td className="px-2 py-2 text-center border-l border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSingleRow(idx)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                          title="Hapus baris kompetensi ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Add Custom Competency Row Field */}
+            <div className="flex flex-col sm:flex-row gap-2 items-center bg-slate-900/80 border border-slate-800 p-3 rounded-2xl">
+              <input
+                type="text"
+                value={newCompetencyItemText}
+                onChange={(e) => setNewCompetencyItemText(e.target.value)}
+                placeholder="Ketik rincian butir kewenangan klinis baru untuk ditambahkan..."
+                className="w-full sm:flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustomCompetencyRow();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAddCustomCompetencyRow}
+                disabled={!newCompetencyItemText.trim()}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs shadow transition disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Butir Kompetensi</span>
+              </button>
             </div>
 
             {/* Live Kesimpulan Preview */}
