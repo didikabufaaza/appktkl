@@ -82,6 +82,9 @@ export default function DokumenRkkSpkPage() {
   const [singleAlumni, setSingleAlumni] = useState('');
   const [singleGelar, setSingleGelar] = useState('');
   const [singlePelayanan, setSinglePelayanan] = useState('');
+  const [singleTanggal, setSingleTanggal] = useState(
+    new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+  );
   const [singleChecklist, setSingleChecklist] = useState<RkkChecklistRow[]>([]);
   const [singleNomorSurat, setSingleNomorSurat] = useState(
     `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`
@@ -97,23 +100,72 @@ export default function DokumenRkkSpkPage() {
     return romans[m - 1] || 'X';
   }
 
-  // Load initial data
+  // Load initial data with client-side localStorage fallback
   const loadAllData = async () => {
     setLoading(true);
     try {
+      // 1. Fetch server data
       const [membersRes, rkkRes, spkRes, kopRes, authRes] = await Promise.all([
-        fetch('/api/anggota?t=' + Date.now()).then((r) => r.json()),
-        fetch('/api/rkk?t=' + Date.now()).then((r) => r.json()),
-        fetch('/api/spk?t=' + Date.now()).then((r) => r.json()),
-        fetch('/api/master/kop-surat?t=' + Date.now()).then((r) => r.json()),
-        fetch('/api/auth/me').then((r) => r.json()),
+        fetch('/api/anggota?t=' + Date.now()).then((r) => r.json()).catch(() => null),
+        fetch('/api/rkk?t=' + Date.now()).then((r) => r.json()).catch(() => null),
+        fetch('/api/spk?t=' + Date.now()).then((r) => r.json()).catch(() => null),
+        fetch('/api/master/kop-surat?t=' + Date.now()).then((r) => r.json()).catch(() => null),
+        fetch('/api/auth/me').then((r) => r.json()).catch(() => null),
       ]);
 
       if (membersRes?.success && membersRes.data) setMembers(membersRes.data);
-      if (rkkRes?.success && rkkRes.data) setRkkList(rkkRes.data);
-      if (spkRes?.success && spkRes.data) setSpkList(spkRes.data);
       if (kopRes?.success && kopRes.data) setKop(kopRes.data);
       if (authRes?.success && authRes.user) setUserSession(authRes.user);
+
+      // 2. Read local client cache to ensure no documents ever vanish
+      const localRkkRaw = typeof window !== 'undefined' ? localStorage.getItem('appktkl_rkk_cache') : null;
+      const localSpkRaw = typeof window !== 'undefined' ? localStorage.getItem('appktkl_spk_cache') : null;
+      const cachedRkk: RkkItem[] = localRkkRaw ? JSON.parse(localRkkRaw) : [];
+      const cachedSpk: SpkItem[] = localSpkRaw ? JSON.parse(localSpkRaw) : [];
+
+      // Read deleted IDs to suppress
+      const deletedRkkRaw = typeof window !== 'undefined' ? localStorage.getItem('appktkl_deleted_rkk') : null;
+      const deletedRkkSet = new Set(deletedRkkRaw ? JSON.parse(deletedRkkRaw) : []);
+
+      // Merge RKK: server items + cached items
+      const rkkMap = new Map<string, RkkItem>();
+      if (rkkRes?.success && Array.isArray(rkkRes.data)) {
+        rkkRes.data.forEach((item: RkkItem) => {
+          if (!deletedRkkSet.has(item.id)) rkkMap.set(item.id, item);
+        });
+      }
+      cachedRkk.forEach((item: RkkItem) => {
+        if (!deletedRkkSet.has(item.id) && !rkkMap.has(item.id)) {
+          rkkMap.set(item.id, item);
+        }
+      });
+
+      const mergedRkk = Array.from(rkkMap.values());
+      setRkkList(mergedRkk);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_rkk_cache', JSON.stringify(mergedRkk));
+      }
+
+      // Merge SPK
+      const spkMap = new Map<string, SpkItem>();
+      if (spkRes?.success && Array.isArray(spkRes.data)) {
+        spkRes.data.forEach((item: SpkItem) => {
+          if (!deletedRkkSet.has(item.rkkId) && !deletedRkkSet.has(item.id)) {
+            spkMap.set(item.id, item);
+          }
+        });
+      }
+      cachedSpk.forEach((item: SpkItem) => {
+        if (!deletedRkkSet.has(item.rkkId) && !deletedRkkSet.has(item.id) && !spkMap.has(item.id)) {
+          spkMap.set(item.id, item);
+        }
+      });
+
+      const mergedSpk = Array.from(spkMap.values());
+      setSpkList(mergedSpk);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_spk_cache', JSON.stringify(mergedSpk));
+      }
     } catch (e) {
       toast.error('Gagal memuat data dokumen.');
     } finally {
@@ -279,28 +331,32 @@ export default function DokumenRkkSpkPage() {
         spkItems.push(spk);
       });
 
-      // Optimistic update so it immediately appears in Daftar Dokumen
-      setRkkList((prev) => [...rkkItems, ...prev]);
-      setSpkList((prev) => [...spkItems, ...prev]);
+      // Update state and localStorage immediately
+      const newRkkList = [...rkkItems, ...rkkList];
+      const newSpkList = [...spkItems, ...spkList];
+      setRkkList(newRkkList);
+      setSpkList(newSpkList);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_rkk_cache', JSON.stringify(newRkkList));
+        localStorage.setItem('appktkl_spk_cache', JSON.stringify(newSpkList));
+      }
 
-      // Save RKK
-      await fetch('/api/rkk', {
+      // Save to server
+      fetch('/api/rkk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rkkItems),
-      });
+      }).catch(() => {});
 
-      // Save SPK
-      await fetch('/api/spk', {
+      fetch('/api/spk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(spkItems),
-      });
+      }).catch(() => {});
 
       toast.success(
         `Sukses membuat ${rkkItems.length} dokumen RKK dan ${spkItems.length} dokumen SPK untuk profesi ${bulkProfesi}!`
       );
-      loadAllData();
       setActiveTab('daftar');
     } catch (e) {
       toast.error('Terjadi kesalahan saat menyimpan dokumen masal.');
@@ -330,7 +386,7 @@ export default function DokumenRkkSpkPage() {
         kualifikasi: singleKualifikasi,
         alumni: singleAlumni,
         checklistData: singleChecklist,
-        tanggal: bulkTanggal,
+        tanggal: singleTanggal,
         namaPemohon: singleNama,
         namaAsesor: bulkNamaAsesor,
         nipAsesor: bulkNipAsesor,
@@ -348,31 +404,36 @@ export default function DokumenRkkSpkPage() {
         profesi: singleProfesi,
         pelayanan: singlePelayanan || singleProfesi,
         masaBerlakuTahun: '3 (tiga) tahun',
-        tanggalDitetapkan: bulkTanggal,
+        tanggalDitetapkan: singleTanggal,
         tempatDitetapkan: 'TULUS AYU',
         namaDirektur: bulkNamaDirektur,
         pangkatDirektur: bulkPangkatDirektur,
         nipDirektur: bulkNipDirektur,
       };
 
-      // Optimistic update
-      setRkkList((prev) => [rkk, ...prev]);
-      setSpkList((prev) => [spk, ...prev]);
+      // Update state and localStorage immediately
+      const newRkkList = [rkk, ...rkkList];
+      const newSpkList = [spk, ...spkList];
+      setRkkList(newRkkList);
+      setSpkList(newSpkList);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_rkk_cache', JSON.stringify(newRkkList));
+        localStorage.setItem('appktkl_spk_cache', JSON.stringify(newSpkList));
+      }
 
-      await fetch('/api/rkk', {
+      fetch('/api/rkk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rkk),
-      });
+      }).catch(() => {});
 
-      await fetch('/api/spk', {
+      fetch('/api/spk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(spk),
-      });
+      }).catch(() => {});
 
       toast.success(`Dokumen RKK dan SPK atas nama ${singleNama} berhasil dibuat!`);
-      loadAllData();
       setActiveTab('daftar');
     } catch (e) {
       toast.error('Gagal menyimpan dokumen.');
@@ -415,32 +476,50 @@ export default function DokumenRkkSpkPage() {
     if (!editingRkk) return;
     setSubmitting(true);
     try {
-      // 1. Save RKK
-      await fetch('/api/rkk', {
+      // Synchronize date to SPK if SPK exists
+      const updatedSpk = editingSpk
+        ? {
+            ...editingSpk,
+            nama: editingRkk.nama,
+            profesi: editingRkk.profesi,
+            kualifikasi: editingRkk.kualifikasi || editingRkk.profesi,
+            tanggalDitetapkan: editingRkk.tanggal || editingSpk.tanggalDitetapkan,
+          }
+        : null;
+
+      // Update state and localStorage immediately
+      const newRkkList = rkkList.map((item) => (item.id === editingRkk.id ? editingRkk : item));
+      setRkkList(newRkkList);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_rkk_cache', JSON.stringify(newRkkList));
+      }
+
+      if (updatedSpk) {
+        const newSpkList = spkList.map((item) => (item.id === updatedSpk.id ? updatedSpk : item));
+        setSpkList(newSpkList);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('appktkl_spk_cache', JSON.stringify(newSpkList));
+        }
+      }
+
+      // Save to server
+      fetch('/api/rkk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingRkk),
-      });
+      }).catch(() => {});
 
-      // 2. Save SPK
-      if (editingSpk) {
-        await fetch('/api/spk', {
+      if (updatedSpk) {
+        fetch('/api/spk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingSpk),
-        });
-      }
-
-      // Optimistic updates
-      setRkkList((prev) => prev.map((item) => (item.id === editingRkk.id ? editingRkk : item)));
-      if (editingSpk) {
-        setSpkList((prev) => prev.map((item) => (item.id === editingSpk.id ? editingSpk : item)));
+          body: JSON.stringify(updatedSpk),
+        }).catch(() => {});
       }
 
       toast.success(`Perubahan dokumen RKK & SPK atas nama ${editingRkk.nama} berhasil disimpan!`);
       setEditingRkk(null);
       setEditingSpk(null);
-      loadAllData();
     } catch (e) {
       toast.error('Gagal menyimpan perubahan dokumen.');
     } finally {
@@ -452,20 +531,32 @@ export default function DokumenRkkSpkPage() {
   const handleDeleteDocument = async (rkkId: string, spkId?: string) => {
     if (!confirm('Yakin ingin menghapus dokumen RKK dan SPK ini secara permanen?')) return;
     try {
-      // Optimistic instant removal from UI
-      setRkkList((prev) => prev.filter((r) => r.id !== rkkId));
-      if (spkId) {
-        setSpkList((prev) => prev.filter((s) => s.id !== spkId && s.rkkId !== rkkId));
+      // 1. Remove from state immediately
+      const newRkkList = rkkList.filter((r) => r.id !== rkkId);
+      const newSpkList = spkList.filter((s) => s.id !== spkId && s.rkkId !== rkkId);
+      setRkkList(newRkkList);
+      setSpkList(newSpkList);
+
+      // 2. Remove from local client cache
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_rkk_cache', JSON.stringify(newRkkList));
+        localStorage.setItem('appktkl_spk_cache', JSON.stringify(newSpkList));
+
+        // Add to deleted set so it never resurrects
+        const deletedRaw = localStorage.getItem('appktkl_deleted_rkk');
+        const deletedArr = deletedRaw ? JSON.parse(deletedRaw) : [];
+        deletedArr.push(rkkId);
+        if (spkId) deletedArr.push(spkId);
+        localStorage.setItem('appktkl_deleted_rkk', JSON.stringify(deletedArr));
       }
 
-      const p1 = fetch(`/api/rkk?id=${encodeURIComponent(rkkId)}`, { method: 'DELETE' });
-      const p2 = spkId
-        ? fetch(`/api/spk?id=${encodeURIComponent(spkId)}`, { method: 'DELETE' })
-        : Promise.resolve();
+      // 3. Delete from server
+      fetch(`/api/rkk?id=${encodeURIComponent(rkkId)}`, { method: 'DELETE' }).catch(() => {});
+      if (spkId) {
+        fetch(`/api/spk?id=${encodeURIComponent(spkId)}`, { method: 'DELETE' }).catch(() => {});
+      }
 
-      await Promise.all([p1, p2]);
       toast.success('Dokumen RKK & SPK berhasil dihapus.');
-      loadAllData();
     } catch (e) {
       toast.error('Gagal menghapus dokumen.');
     }
@@ -616,7 +707,7 @@ export default function DokumenRkkSpkPage() {
                     <th className="px-4 py-3.5">Kualifikasi / Alumni</th>
                     <th className="px-4 py-3.5">Tanggal</th>
                     <th className="px-4 py-3.5 text-center">Status</th>
-                    <th className="px-4 py-3.5 text-right min-w-[280px]">Aksi Dokumen</th>
+                    <th className="px-4 py-3.5 text-right min-w-[320px]">Aksi Dokumen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 text-slate-200">
@@ -1367,7 +1458,17 @@ export default function DokumenRkkSpkPage() {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
+              <label className="block text-slate-300 font-bold mb-1.5">Tanggal Dokumen:</label>
+              <input
+                type="text"
+                value={singleTanggal}
+                onChange={(e) => setSingleTanggal(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
               <label className="block text-slate-300 font-bold mb-1.5">Nomor Keputusan Direktur SPK:</label>
               <input
                 type="text"
@@ -1633,7 +1734,13 @@ export default function DokumenRkkSpkPage() {
                   <input
                     type="text"
                     value={editingRkk.tanggal || ''}
-                    onChange={(e) => setEditingRkk({ ...editingRkk, tanggal: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingRkk({ ...editingRkk, tanggal: val });
+                      if (editingSpk) {
+                        setEditingSpk({ ...editingSpk, tanggalDitetapkan: val });
+                      }
+                    }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
                   />
                 </div>

@@ -27,10 +27,10 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
     pemda: 'PEMERINTAH KABUPATEN OGAN KOMERING ULU TIMUR',
     namaRS: 'RSUD OKU TIMUR',
     alamatRS:
-      'Jalan Raya Belitang-Rasuan No. 1 Desa Tulus Ayu Kecamatan Belitang Madang Raya Kabupaten Ogan Komering Ulu Timur',
-    kontakRS: 'Website: www.rsudokutimur.co.id, email: kab.rsudokutimur@gmail.com Telp. (0735)-4531.945',
-    logoKiriUrl: '',
-    logoKananUrl: '',
+      'Jalan Raya Belitang-Rasuan No. 1, Tulus Ayu, Belitang Madang Raya, Kabupaten OKU Timur, Sumatera Selatan 32382',
+    kontakRS: 'Telp. (0735)-4531 945, Email: kab.rsudokutimur@gmail.com, Laman: www.rsudokut.okutimurkab.go.id',
+    logoKiriUrl: '/images/media_1788156510786.png',
+    logoKananUrl: '/images/logo_komite.png',
   };
 
   const handlePrint = () => {
@@ -41,12 +41,22 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = 210;
 
-    // Load Left & Right Logos
+    // Load Left & Right Logos safely
     const loadImage = (url: string): Promise<string | null> => {
       return new Promise((resolve) => {
         if (!url) return resolve(null);
-        const processed = getMemberPhotoUrl(url);
+        let processed = url;
+        if (typeof window !== 'undefined' && processed.startsWith('/')) {
+          processed = window.location.origin + processed;
+        } else {
+          processed = getMemberPhotoUrl(processed);
+          if (typeof window !== 'undefined' && processed.startsWith('/')) {
+            processed = window.location.origin + processed;
+          }
+        }
+
         if (processed.startsWith('data:image/')) return resolve(processed);
+
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
@@ -68,9 +78,12 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
       });
     };
 
+    const logoKiriToLoad = activeKop.logoKiriUrl || '/images/media_1788156510786.png';
+    const logoKananToLoad = activeKop.logoKananUrl || '/images/logo_komite.png';
+
     const [leftLogo, rightLogo] = await Promise.all([
-      loadImage(activeKop.logoKiriUrl),
-      loadImage(activeKop.logoKananUrl),
+      loadImage(logoKiriToLoad),
+      loadImage(logoKananToLoad),
     ]);
 
     if (leftLogo) {
@@ -142,10 +155,10 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
     const tableBody = rkk.checklistData.map((row) => [
       row.no,
       row.kompetensi,
-      row.dimintaM ? '✓' : '',
-      row.dimintaDS ? '✓' : '',
-      row.disetujuiM ? '✓' : '',
-      row.disetujuiDS ? '✓' : '',
+      row.dimintaM ? 'CHECKED' : '',
+      row.dimintaDS ? 'CHECKED' : '',
+      row.disetujuiM ? 'CHECKED' : '',
+      row.disetujuiDS ? 'CHECKED' : '',
       row.ket || '',
     ]);
 
@@ -172,11 +185,34 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
       columnStyles: {
         0: { cellWidth: 8, halign: 'center' },
         1: { cellWidth: 104 },
-        2: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-        3: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-        4: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-        5: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+        2: { cellWidth: 14, halign: 'center' },
+        3: { cellWidth: 14, halign: 'center' },
+        4: { cellWidth: 14, halign: 'center' },
+        5: { cellWidth: 14, halign: 'center' },
         6: { cellWidth: 14, halign: 'center' },
+      },
+      didParseCell: (data) => {
+        // Clear text for checklist columns so Helvetica won't print dots
+        if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 5) {
+          if (data.cell.raw === 'CHECKED') {
+            data.cell.text = [];
+          }
+        }
+      },
+      didDrawCell: (data) => {
+        // Draw crisp vector checkmarks
+        if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 5) {
+          if (data.cell.raw === 'CHECKED') {
+            const x = data.cell.x + data.cell.width / 2;
+            const y = data.cell.y + data.cell.height / 2;
+            doc.saveGraphicsState?.();
+            doc.setDrawColor(16, 120, 80); // dark emerald
+            doc.setLineWidth(0.65);
+            doc.line(x - 2.5, y, x - 0.8, y + 2.2);
+            doc.line(x - 0.8, y + 2.2, x + 2.8, y - 2.5);
+            doc.restoreGraphicsState?.();
+          }
+        }
       },
     });
 
@@ -210,13 +246,16 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
     doc.save(`RKK_${rkk.profesi.replace(/\s+/g, '_')}_${rkk.nama.replace(/\s+/g, '_')}.pdf`);
   };
 
+  const logoKiriSrc = activeKop.logoKiriUrl || '/images/media_1788156510786.png';
+  const logoKananSrc = activeKop.logoKananUrl || '/images/logo_komite.png';
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white text-black max-w-4xl w-full rounded-2xl shadow-2xl overflow-hidden my-6 border border-slate-300">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+      <div className="bg-white text-black max-w-4xl w-full rounded-2xl shadow-2xl overflow-hidden my-auto border border-slate-300 max-h-[94vh] flex flex-col">
         {/* Top Control Bar (Hidden on Print) */}
-        <div className="bg-slate-900 text-slate-100 p-4 flex items-center justify-between no-print border-b border-slate-800">
+        <div className="bg-slate-900 text-slate-100 px-4 py-3 sm:px-6 sm:py-3.5 flex items-center justify-between no-print border-b border-slate-800 shrink-0">
           <div>
-            <h3 className="text-sm font-bold">Pratinjau Dokumen RKK</h3>
+            <h3 className="text-sm font-bold text-slate-100">Pratinjau Dokumen RKK</h3>
             <p className="text-xs text-slate-400">
               {rkk.profesi} - {rkk.nama}
             </p>
@@ -224,14 +263,14 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition"
             >
               <Printer className="w-4 h-4" />
               <span>Cetak (Print)</span>
             </button>
             <button
               onClick={handleDownloadPdf}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition"
             >
               <Download className="w-4 h-4" />
               <span>Download PDF</span>
@@ -240,6 +279,7 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
               <button
                 onClick={onClose}
                 className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+                title="Tutup"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -247,152 +287,166 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
           </div>
         </div>
 
-        {/* Printable Document Sheet */}
-        <div id="print-rkk-area" className="p-8 sm:p-12 text-slate-900 font-sans leading-normal">
-          {/* Kop Surat Header */}
-          <div className="flex items-center justify-between border-b-[3px] border-double border-slate-900 pb-3 mb-4">
-            <div className="w-20 h-20 shrink-0 flex items-center justify-center">
-              {activeKop.logoKiriUrl ? (
+        {/* Printable Document Sheet (Scrollable) */}
+        <div className="overflow-y-auto flex-1 bg-white">
+          <div id="print-rkk-area" className="p-6 sm:p-10 md:p-12 text-slate-900 font-sans leading-normal bg-white max-w-3xl mx-auto">
+            {/* Kop Surat Header */}
+            <div className="flex items-center justify-between border-b-[3px] border-double border-slate-900 pb-3 mb-4">
+              <div className="w-20 h-20 shrink-0 flex items-center justify-center">
                 <img
-                  src={getMemberPhotoUrl(activeKop.logoKiriUrl)}
-                  alt="Logo Kiri"
+                  src={logoKiriSrc}
+                  alt="Logo Pemda OKU Timur"
                   className="max-w-full max-h-full object-contain"
                 />
-              ) : (
-                <div className="w-16 h-16 border border-gray-400 rounded-full flex items-center justify-center text-[10px] text-gray-400">
-                  Logo
-                </div>
-              )}
-            </div>
-
-            <div className="text-center flex-1 px-4 leading-tight">
-              <h2 className="text-xs md:text-sm font-bold uppercase tracking-wider">{activeKop.pemda}</h2>
-              <h1 className="text-base md:text-xl font-extrabold uppercase my-1">{activeKop.namaRS}</h1>
-              <p className="text-[10px] md:text-xs text-slate-700">{activeKop.alamatRS}</p>
-              <p className="text-[9px] md:text-[10px] text-slate-600 font-medium mt-0.5">{activeKop.kontakRS}</p>
-            </div>
-
-            <div className="w-20 h-20 shrink-0 flex items-center justify-center">
-              {activeKop.logoKananUrl ? (
-                <img
-                  src={getMemberPhotoUrl(activeKop.logoKananUrl)}
-                  alt="Logo Kanan"
-                  className="max-w-full max-h-full object-contain"
-                />
-              ) : (
-                <div className="w-16 h-16 border border-gray-400 rounded-full flex items-center justify-center text-[10px] text-gray-400">
-                  Logo
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Document Title */}
-          <div className="text-center my-4 leading-snug">
-            <h2 className="text-sm md:text-base font-extrabold uppercase tracking-wide">
-              RINCIAN KEWENANGAN KLINIK (RKK) TENAGA KESEHATAN LAIN
-            </h2>
-            <h3 className="text-sm md:text-base font-extrabold uppercase tracking-wide">RSUD OKU TIMUR</h3>
-          </div>
-
-          {/* Instructions */}
-          <div className="text-xs mb-4">
-            <p className="font-bold">Petunjuk Pengisian:</p>
-            <p className="italic text-slate-700">
-              Pemohon mengisi kolom &apos;DIMINTA&apos; dan Sub-Komite Kredensial/Asesor mengisi kolom &apos;DISETUJUI&apos;.
-            </p>
-            <p className="italic text-slate-700">Kode: M = Mandiri | DS = Dengan Supervisi | KET = Keterangan</p>
-          </div>
-
-          {/* Profile Header */}
-          <div className="text-xs space-y-1 mb-4">
-            <div className="font-bold text-sm">Profesi: {rkk.profesi}</div>
-            <div className="font-bold">Rincian Kewenangan Klinis</div>
-            <div className="grid grid-cols-12 gap-1 pt-1">
-              <span className="col-span-2">Nama</span>
-              <span className="col-span-10">: {rkk.nama}</span>
-              <span className="col-span-2">Kualifikasi</span>
-              <span className="col-span-10">: {rkk.kualifikasi || '-'}</span>
-              <span className="col-span-2">Alumni</span>
-              <span className="col-span-10">: {rkk.alumni || '-'}</span>
-            </div>
-          </div>
-
-          {/* Competency Table */}
-          <table className="w-full text-xs border-collapse border border-slate-400 mb-6">
-            <thead>
-              <tr className="bg-slate-100 font-bold text-center border-b border-slate-400">
-                <th rowSpan={2} className="border border-slate-400 px-2 py-2 w-10">
-                  No
-                </th>
-                <th rowSpan={2} className="border border-slate-400 px-3 py-2 text-left">
-                  Rincian Kewenangan Klinis (Kompetensi)
-                </th>
-                <th colSpan={2} className="border border-slate-400 px-2 py-1">
-                  DIMINTA
-                </th>
-                <th colSpan={2} className="border border-slate-400 px-2 py-1">
-                  DISETUJUI
-                </th>
-                <th rowSpan={2} className="border border-slate-400 px-2 py-2 w-16">
-                  KET
-                </th>
-              </tr>
-              <tr className="bg-slate-100 font-bold text-center border-b border-slate-400 text-[11px]">
-                <th className="border border-slate-400 px-2 py-1 w-12">M</th>
-                <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
-                <th className="border border-slate-400 px-2 py-1 w-12">M</th>
-                <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rkk.checklistData.map((row) => (
-                <tr key={row.no} className="border-b border-slate-300">
-                  <td className="border border-slate-400 px-2 py-2 text-center font-medium">{row.no}</td>
-                  <td className="border border-slate-400 px-3 py-2">{row.kompetensi}</td>
-                  <td className="border border-slate-400 px-2 py-2 text-center font-bold text-emerald-700">
-                    {row.dimintaM ? '✓' : ''}
-                  </td>
-                  <td className="border border-slate-400 px-2 py-2 text-center font-bold text-amber-700">
-                    {row.dimintaDS ? '✓' : ''}
-                  </td>
-                  <td className="border border-slate-400 px-2 py-2 text-center font-bold text-emerald-700">
-                    {row.disetujuiM ? '✓' : ''}
-                  </td>
-                  <td className="border border-slate-400 px-2 py-2 text-center font-bold text-amber-700">
-                    {row.disetujuiDS ? '✓' : ''}
-                  </td>
-                  <td className="border border-slate-400 px-2 py-2 text-center text-[11px] text-slate-600">
-                    {row.ket || ''}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Kesimpulan Section */}
-          <div className="mb-6 text-xs">
-            <p className="font-bold mb-1.5 text-slate-900 uppercase tracking-wide">Kesimpulan:</p>
-            <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 leading-relaxed font-medium text-justify">
-              {getKesimpulanRkk(rkk.checklistData)}
-            </div>
-          </div>
-
-          {/* Date & Signatures */}
-          <div className="pt-2 text-xs">
-            <div className="text-right mb-4">OKU Timur, {rkk.tanggal || '........................................'}</div>
-            <div className="flex justify-between items-start">
-              <div className="text-left w-64">
-                <p>Pemohon,</p>
-                <div className="h-20"></div>
-                <p className="font-bold underline">( {rkk.namaPemohon || rkk.nama} )</p>
               </div>
 
-              <div className="text-left w-64">
-                <p>Asesor,</p>
-                <div className="h-20"></div>
-                <p className="font-bold underline">( {rkk.namaAsesor || '........................................'} )</p>
-                {rkk.nipAsesor && <p className="text-[11px] text-slate-600 font-mono">NIP. {rkk.nipAsesor}</p>}
+              <div className="text-center flex-1 px-4 leading-tight">
+                <h2 className="text-xs md:text-sm font-bold uppercase tracking-wider">{activeKop.pemda}</h2>
+                <h1 className="text-base md:text-xl font-extrabold uppercase my-1">{activeKop.namaRS}</h1>
+                <p className="text-[10px] md:text-xs text-slate-700">{activeKop.alamatRS}</p>
+                <p className="text-[9px] md:text-[10px] text-slate-600 font-medium mt-0.5">{activeKop.kontakRS}</p>
+              </div>
+
+              <div className="w-20 h-20 shrink-0 flex items-center justify-center">
+                <img
+                  src={logoKananSrc}
+                  alt="Logo RSUD OKU Timur"
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            </div>
+
+            {/* Document Title */}
+            <div className="text-center my-4 leading-snug">
+              <h2 className="text-sm md:text-base font-extrabold uppercase tracking-wide">
+                RINCIAN KEWENANGAN KLINIK (RKK) TENAGA KESEHATAN LAIN
+              </h2>
+              <h3 className="text-sm md:text-base font-extrabold uppercase tracking-wide">RSUD OKU TIMUR</h3>
+            </div>
+
+            {/* Instructions */}
+            <div className="text-xs mb-4">
+              <p className="font-bold">Petunjuk Pengisian:</p>
+              <p className="italic text-slate-700">
+                Pemohon mengisi kolom &apos;DIMINTA&apos; dan Sub-Komite Kredensial/Asesor mengisi kolom &apos;DISETUJUI&apos;.
+              </p>
+              <p className="italic text-slate-700">Kode: M = Mandiri | DS = Dengan Supervisi | KET = Keterangan</p>
+            </div>
+
+            {/* Profile Header */}
+            <div className="text-xs space-y-1 mb-4">
+              <div className="font-bold text-sm">Profesi: {rkk.profesi}</div>
+              <div className="font-bold">Rincian Kewenangan Klinis</div>
+              <div className="grid grid-cols-12 gap-1 pt-1">
+                <span className="col-span-2">Nama</span>
+                <span className="col-span-10">: {rkk.nama}</span>
+                <span className="col-span-2">Kualifikasi</span>
+                <span className="col-span-10">: {rkk.kualifikasi || '-'}</span>
+                <span className="col-span-2">Alumni</span>
+                <span className="col-span-10">: {rkk.alumni || '-'}</span>
+              </div>
+            </div>
+
+            {/* Competency Table */}
+            <table className="w-full text-xs border-collapse border border-slate-400 mb-5">
+              <thead>
+                <tr className="bg-slate-100 font-bold text-center border-b border-slate-400">
+                  <th rowSpan={2} className="border border-slate-400 px-2 py-2 w-10">
+                    No
+                  </th>
+                  <th rowSpan={2} className="border border-slate-400 px-3 py-2 text-left">
+                    Rincian Kewenangan Klinis (Kompetensi)
+                  </th>
+                  <th colSpan={2} className="border border-slate-400 px-2 py-1">
+                    DIMINTA
+                  </th>
+                  <th colSpan={2} className="border border-slate-400 px-2 py-1">
+                    DISETUJUI
+                  </th>
+                  <th rowSpan={2} className="border border-slate-400 px-2 py-2 w-16">
+                    KET
+                  </th>
+                </tr>
+                <tr className="bg-slate-100 font-bold text-center border-b border-slate-400 text-[11px]">
+                  <th className="border border-slate-400 px-2 py-1 w-12">M</th>
+                  <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
+                  <th className="border border-slate-400 px-2 py-1 w-12">M</th>
+                  <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rkk.checklistData.map((row) => (
+                  <tr key={row.no} className="border-b border-slate-300">
+                    <td className="border border-slate-400 px-2 py-2 text-center font-medium">{row.no}</td>
+                    <td className="border border-slate-400 px-3 py-2">{row.kompetensi}</td>
+                    <td className="border border-slate-400 px-2 py-2 text-center font-black text-emerald-700">
+                      {row.dimintaM ? (
+                        <span className="text-sm font-black text-emerald-800 print:text-black leading-none inline-block">
+                          &#10003;
+                        </span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td className="border border-slate-400 px-2 py-2 text-center font-black text-amber-700">
+                      {row.dimintaDS ? (
+                        <span className="text-sm font-black text-amber-800 print:text-black leading-none inline-block">
+                          &#10003;
+                        </span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td className="border border-slate-400 px-2 py-2 text-center font-black text-emerald-700">
+                      {row.disetujuiM ? (
+                        <span className="text-sm font-black text-emerald-800 print:text-black leading-none inline-block">
+                          &#10003;
+                        </span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td className="border border-slate-400 px-2 py-2 text-center font-black text-amber-700">
+                      {row.disetujuiDS ? (
+                        <span className="text-sm font-black text-amber-800 print:text-black leading-none inline-block">
+                          &#10003;
+                        </span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td className="border border-slate-400 px-2 py-2 text-center text-[11px] text-slate-600">
+                      {row.ket || ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Kesimpulan Section */}
+            <div className="mb-6 text-xs">
+              <p className="font-bold mb-1 text-slate-900 uppercase tracking-wide">Kesimpulan:</p>
+              <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 leading-relaxed font-medium text-justify">
+                {getKesimpulanRkk(rkk.checklistData)}
+              </div>
+            </div>
+
+            {/* Date & Signatures */}
+            <div className="pt-2 text-xs">
+              <div className="text-right mb-4">OKU Timur, {rkk.tanggal || '........................................'}</div>
+              <div className="flex justify-between items-start">
+                <div className="text-left w-64">
+                  <p>Pemohon,</p>
+                  <div className="h-20"></div>
+                  <p className="font-bold underline">( {rkk.namaPemohon || rkk.nama} )</p>
+                </div>
+
+                <div className="text-left w-64">
+                  <p>Asesor,</p>
+                  <div className="h-20"></div>
+                  <p className="font-bold underline">( {rkk.namaAsesor || '........................................'} )</p>
+                  {rkk.nipAsesor && <p className="text-[11px] text-slate-600 font-mono">NIP. {rkk.nipAsesor}</p>}
+                </div>
               </div>
             </div>
           </div>

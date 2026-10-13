@@ -194,15 +194,20 @@ export function readKopSurat(): KopSuratData {
     namaRS: "RSUD OKU TIMUR",
     alamatRS: "Jalan Raya Belitang-Rasuan No. 1, Tulus Ayu, Belitang Madang Raya, Kabupaten OKU Timur, Sumatera Selatan 32382",
     kontakRS: "Telp. (0735)-4531 945, Email: kab.rsudokutimur@gmail.com, Laman: www.rsudokut.okutimurkab.go.id",
-    logoKiriUrl: "",
-    logoKananUrl: ""
+    logoKiriUrl: "/images/media_1788156510786.png",
+    logoKananUrl: "/images/logo_komite.png"
   };
   try {
     ensureDataDir();
     if (fs.existsSync(KOP_SURAT_FILE)) {
       const raw = fs.readFileSync(KOP_SURAT_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      globalThis.__ktklKopSurat = { ...defaultKop, ...parsed };
+      globalThis.__ktklKopSurat = {
+        ...defaultKop,
+        ...parsed,
+        logoKiriUrl: parsed.logoKiriUrl || defaultKop.logoKiriUrl,
+        logoKananUrl: parsed.logoKananUrl || defaultKop.logoKananUrl,
+      };
       return globalThis.__ktklKopSurat!;
     }
   } catch (e) {
