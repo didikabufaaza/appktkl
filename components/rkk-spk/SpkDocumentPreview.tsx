@@ -74,136 +74,147 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
       loadImage(logoKananToLoad),
     ]);
 
+    // Margins: Left: 30mm, Right: 20mm, Top: 20mm, Bottom: 20mm
+    // Printable width: 160mm (from X=30 to X=190)
+    // Center X: 110mm
+    const marginLeft = 30;
+    const marginRight = 20;
+    const printableWidth = pageWidth - marginLeft - marginRight; // 160mm
+    const centerX = marginLeft + printableWidth / 2; // 110mm
+    const maxX = pageWidth - marginRight; // 190mm
+    const contentIndentX = 55;
+    const contentWidth = maxX - contentIndentX; // 135mm
+
     if (leftLogo) {
       try {
-        doc.addImage(leftLogo, 'PNG', 14, 8, 18, 18);
+        doc.addImage(leftLogo, 'PNG', marginLeft, 20, 18, 18);
       } catch (e) {}
     }
     if (rightLogo) {
       try {
-        doc.addImage(rightLogo, 'PNG', pageWidth - 14 - 18, 8, 18, 18);
+        doc.addImage(rightLogo, 'PNG', maxX - 18, 20, 18, 18);
       } catch (e) {}
     }
 
-    // Kop Surat
+    // Kop Surat (Font Arial / Helvetica)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
-    doc.text(activeKop.pemda, pageWidth / 2, 11, { align: 'center' });
+    doc.text(activeKop.pemda, centerX, 23, { align: 'center' });
 
     doc.setFontSize(13);
-    doc.text(activeKop.namaRS, pageWidth / 2, 16, { align: 'center' });
+    doc.text(activeKop.namaRS, centerX, 28, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(40, 40, 40);
-    doc.text(activeKop.alamatRS, pageWidth / 2, 21, { align: 'center' });
+    doc.text(activeKop.alamatRS, centerX, 33, { align: 'center' });
 
     doc.setFontSize(7);
-    doc.text(activeKop.kontakRS, pageWidth / 2, 25, { align: 'center' });
+    doc.text(activeKop.kontakRS, centerX, 37, { align: 'center' });
 
     // Lines
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.8);
-    doc.line(14, 28, pageWidth - 14, 28);
+    doc.line(marginLeft, 40, maxX, 40);
     doc.setLineWidth(0.2);
-    doc.line(14, 29, pageWidth - 14, 29);
+    doc.line(marginLeft, 41, maxX, 41);
 
     // Title Keputusan
-    let y = 37;
+    let y = 47;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('KEPUTUSAN', pageWidth / 2, y, { align: 'center' });
+    doc.text('KEPUTUSAN', centerX, y, { align: 'center' });
     y += 5;
-    doc.text('DIREKTUR RSUD OKU TIMUR', pageWidth / 2, y, { align: 'center' });
+    doc.text('DIREKTUR RSUD OKU TIMUR', centerX, y, { align: 'center' });
     y += 5;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9.5);
-    doc.text(`Nomor : ${spk.nomorSurat}`, pageWidth / 2, y, { align: 'center' });
+    doc.text(`Nomor : ${spk.nomorSurat}`, centerX, y, { align: 'center' });
 
-    y += 7;
+    y += 6;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('Tentang', pageWidth / 2, y, { align: 'center' });
-    y += 5;
-    doc.text('Surat penugasan Klinis dan Rincian Kewenangan Klinis', pageWidth / 2, y, { align: 'center' });
-    y += 5;
-    doc.text('RSUD OKU Timur', pageWidth / 2, y, { align: 'center' });
+    doc.setFontSize(9.5);
+    doc.text('Tentang', centerX, y, { align: 'center' });
+    y += 4.5;
+    doc.text('Surat penugasan Klinis dan Rincian Kewenangan Klinis', centerX, y, { align: 'center' });
+    y += 4.5;
+    doc.text('RSUD OKU Timur', centerX, y, { align: 'center' });
 
-    y += 7;
-    doc.text('DIREKTUR RSUD OKU TIMUR', pageWidth / 2, y, { align: 'center' });
+    y += 6;
+    doc.text('DIREKTUR RSUD OKU TIMUR', centerX, y, { align: 'center' });
 
     // Menimbang
-    y += 7;
+    y += 6.5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
-    doc.text('Menimbang  :', 14, y);
+    doc.text('Menimbang  :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const menimbangText = `Bahwa untuk mendukung terwujudnya pelayanan ${
       spk.pelayanan || spk.profesi
     } yang optimal dan meningkatkan keselamatan pasien, perlu ditetapkan surat penugasan klinis dengan rincian kewenangan klinis.`;
-    const splitMenimbang = doc.splitTextToSize(menimbangText, pageWidth - 50);
-    doc.text(splitMenimbang, 45, y);
-    y += splitMenimbang.length * 4.5 + 4;
+    const splitMenimbang = doc.splitTextToSize(menimbangText, contentWidth);
+    doc.text(splitMenimbang, contentIndentX, y);
+    y += splitMenimbang.length * 4.2 + 3;
 
     // MEMUTUSKAN
     doc.setFont('helvetica', 'bold');
-    doc.text('MEMUTUSKAN', pageWidth / 2, y, { align: 'center' });
-    y += 6;
+    doc.text('MEMUTUSKAN', centerX, y, { align: 'center' });
+    y += 5.5;
 
     // Diktum KESATU
     doc.setFont('helvetica', 'bold');
-    doc.text('KESATU       :', 14, y);
+    doc.text('KESATU       :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Nama         : ${spk.nama} ${spk.gelar || ''}`, 45, y);
-    y += 4.5;
-    doc.text(`Kualifikasi  : ${spk.kualifikasi || spk.profesi}`, 45, y);
-    y += 4.5;
+    doc.text(`Nama         : ${spk.nama} ${spk.gelar || ''}`, contentIndentX, y);
+    y += 4.2;
+    doc.text(`Kualifikasi  : ${spk.kualifikasi || spk.profesi}`, contentIndentX, y);
+    y += 4.2;
     const diktum1 = `Mendapat Surat Penugasan Klinik dengan rincian kewenangan klinis dilingkungan RSUD OKU Timur sebagai seorang ${spk.profesi}.`;
-    const splitDiktum1 = doc.splitTextToSize(diktum1, pageWidth - 50);
-    doc.text(splitDiktum1, 45, y);
-    y += splitDiktum1.length * 4.5 + 3;
+    const splitDiktum1 = doc.splitTextToSize(diktum1, contentWidth);
+    doc.text(splitDiktum1, contentIndentX, y);
+    y += splitDiktum1.length * 4.2 + 2.5;
 
     // Diktum KEDUA
     doc.setFont('helvetica', 'bold');
-    doc.text('KEDUA       :', 14, y);
+    doc.text('KEDUA       :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const diktum2 = `Surat Penugasan klinik ini memberikan hak kepada ybs melaksanakan kegiatan profesinya dilingkungan RSUD OKU Timur sesuai dengan Rincian Kewenangan Klinis (terlampir).`;
-    const splitDiktum2 = doc.splitTextToSize(diktum2, pageWidth - 50);
-    doc.text(splitDiktum2, 45, y);
-    y += splitDiktum2.length * 4.5 + 3;
+    const splitDiktum2 = doc.splitTextToSize(diktum2, contentWidth);
+    doc.text(splitDiktum2, contentIndentX, y);
+    y += splitDiktum2.length * 4.2 + 2.5;
 
     // Diktum KETIGA
     doc.setFont('helvetica', 'bold');
-    doc.text('KETIGA      :', 14, y);
+    doc.text('KETIGA      :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const diktum3 = `Rincian Kewenangan Klinis dapat dikurangi atau ditambah atas rekomendasi Komite Tenaga Kesehatan Profesi lain cq. Sub Komite Kredensial.`;
-    const splitDiktum3 = doc.splitTextToSize(diktum3, pageWidth - 50);
-    doc.text(splitDiktum3, 45, y);
-    y += splitDiktum3.length * 4.5 + 3;
+    const splitDiktum3 = doc.splitTextToSize(diktum3, contentWidth);
+    doc.text(splitDiktum3, contentIndentX, y);
+    y += splitDiktum3.length * 4.2 + 2.5;
 
     // Diktum KEEMPAT
     doc.setFont('helvetica', 'bold');
-    doc.text('KEEMPAT    :', 14, y);
+    doc.text('KEEMPAT    :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const diktum4 = `Surat penugasan klinis ${spk.profesi} berlaku untuk jangka waktu ${
       spk.masaBerlakuTahun || '3 (tiga) tahun'
     } dan tidak akan melebihi masa berlaku STR ybs.`;
-    const splitDiktum4 = doc.splitTextToSize(diktum4, pageWidth - 50);
-    doc.text(splitDiktum4, 45, y);
-    y += splitDiktum4.length * 4.5 + 3;
+    const splitDiktum4 = doc.splitTextToSize(diktum4, contentWidth);
+    doc.text(splitDiktum4, contentIndentX, y);
+    y += splitDiktum4.length * 4.2 + 2.5;
 
     // Diktum KELIMA
     doc.setFont('helvetica', 'bold');
-    doc.text('KELIMA      :', 14, y);
+    doc.text('KELIMA      :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     const diktum5 = `Keputusan ini berlaku sejak tanggal ditetapkan, bila kemudian hari diketemukan kekeliruan akan diadakan perbaikan sebagaimana mestinya.`;
-    const splitDiktum5 = doc.splitTextToSize(diktum5, pageWidth - 50);
-    doc.text(splitDiktum5, 45, y);
-    y += splitDiktum5.length * 4.5 + 8;
+    const splitDiktum5 = doc.splitTextToSize(diktum5, contentWidth);
+    doc.text(splitDiktum5, contentIndentX, y);
+    y += splitDiktum5.length * 4.2 + 6;
 
-    // Signature Block
-    const signX = pageWidth - 75;
+    // Signature Block (Right Aligned Direktur)
+    const signX = 130;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.text(`DITETAPKAN DI : ${spk.tempatDitetapkan || 'TULUS AYU'}`, signX, y);
@@ -232,6 +243,27 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
       <div className="bg-white text-black max-w-4xl w-full rounded-2xl shadow-2xl overflow-hidden my-auto border border-slate-300 max-h-[94vh] flex flex-col">
+        {/* Style Tag to Enforce Arial and Margins on Print */}
+        <style jsx global>{`
+          @page {
+            size: A4 portrait;
+            margin: 20mm 20mm 20mm 30mm; /* Top 20mm, Right 20mm, Bottom 20mm, Left 30mm */
+          }
+          @media print {
+            body {
+              font-family: Arial, sans-serif !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+            #print-spk-area {
+              padding: 0 !important;
+              max-width: 100% !important;
+              font-family: Arial, sans-serif !important;
+            }
+          }
+        `}</style>
+
         {/* Top Control Bar (Hidden on Print) */}
         <div className="bg-slate-900 text-slate-100 px-4 py-3 sm:px-6 sm:py-3.5 flex items-center justify-between no-print border-b border-slate-800 shrink-0">
           <div>
@@ -269,7 +301,11 @@ export function SpkDocumentPreview({ spk, kop, onClose }: SpkDocumentPreviewProp
 
         {/* Printable Document Sheet (Scrollable) */}
         <div className="overflow-y-auto flex-1 bg-white">
-          <div id="print-spk-area" className="p-6 sm:p-10 md:p-12 text-slate-900 font-sans leading-normal bg-white max-w-3xl mx-auto">
+          <div
+            id="print-spk-area"
+            className="p-6 sm:p-10 md:p-12 text-slate-900 leading-normal bg-white max-w-3xl mx-auto"
+            style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+          >
             {/* Kop Surat Header */}
             <div className="flex items-center justify-between border-b-[3px] border-double border-slate-900 pb-3 mb-6">
               <div className="w-20 h-20 shrink-0 flex items-center justify-center">

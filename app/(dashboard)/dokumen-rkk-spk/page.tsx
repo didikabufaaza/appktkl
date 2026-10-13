@@ -43,6 +43,7 @@ export default function DokumenRkkSpkPage() {
 
   // Active preview modals
   const [previewRkk, setPreviewRkk] = useState<RkkItem | null>(null);
+  const [previewRkkRekomendasi, setPreviewRkkRekomendasi] = useState<{ rkk: RkkItem; spk: SpkItem | null } | null>(null);
   const [previewSpk, setPreviewSpk] = useState<SpkItem | null>(null);
 
   // Edit Modal State
@@ -784,6 +785,34 @@ export default function DokumenRkkSpkPage() {
                                 <span>Lihat & Cetak RKK</span>
                               </button>
 
+                              {/* View RKK Rekomendasi */}
+                              <button
+                                onClick={() => {
+                                  const spkForRekomendasi = matchedSpk || {
+                                    id: `TEMP-${r.id}`,
+                                    rkkId: r.id,
+                                    memberId: r.memberId,
+                                    nomorSurat: `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`,
+                                    nama: r.nama,
+                                    kualifikasi: r.kualifikasi || r.profesi,
+                                    profesi: r.profesi,
+                                    pelayanan: r.profesi,
+                                    masaBerlakuTahun: '3 (tiga) tahun',
+                                    tanggalDitetapkan: r.tanggal,
+                                    tempatDitetapkan: 'TULUS AYU',
+                                    namaDirektur: bulkNamaDirektur,
+                                    pangkatDirektur: bulkPangkatDirektur,
+                                    nipDirektur: bulkNipDirektur,
+                                  };
+                                  setPreviewRkkRekomendasi({ rkk: r, spk: spkForRekomendasi });
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition"
+                                title="Lihat & Cetak RKK Rekomendasi"
+                              >
+                                <FileCheck className="w-3.5 h-3.5" />
+                                <span>Lihat & Cetak RKK Rekomendasi</span>
+                              </button>
+
                               {/* View SPK */}
                               {matchedSpk ? (
                                 <button
@@ -904,6 +933,32 @@ export default function DokumenRkkSpkPage() {
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>Lihat & Cetak RKK</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const spkForRekomendasi = matchedSpk || {
+                            id: `TEMP-${r.id}`,
+                            rkkId: r.id,
+                            memberId: r.memberId,
+                            nomorSurat: `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`,
+                            nama: r.nama,
+                            kualifikasi: r.kualifikasi || r.profesi,
+                            profesi: r.profesi,
+                            pelayanan: r.profesi,
+                            masaBerlakuTahun: '3 (tiga) tahun',
+                            tanggalDitetapkan: r.tanggal,
+                            tempatDitetapkan: 'TULUS AYU',
+                            namaDirektur: bulkNamaDirektur,
+                            pangkatDirektur: bulkPangkatDirektur,
+                            nipDirektur: bulkNipDirektur,
+                          };
+                          setPreviewRkkRekomendasi({ rkk: r, spk: spkForRekomendasi });
+                        }}
+                        className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-emerald-500/10 active:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold"
+                      >
+                        <FileCheck className="w-3.5 h-3.5" />
+                        <span>RKK Rekomendasi</span>
                       </button>
 
                       {matchedSpk ? (
@@ -2061,6 +2116,17 @@ export default function DokumenRkkSpkPage() {
       {/* Modal Preview RKK */}
       {previewRkk && (
         <RkkDocumentPreview rkk={previewRkk} kop={kop} onClose={() => setPreviewRkk(null)} />
+      )}
+
+      {/* Modal Preview RKK Rekomendasi */}
+      {previewRkkRekomendasi && (
+        <RkkDocumentPreview
+          rkk={previewRkkRekomendasi.rkk}
+          spk={previewRkkRekomendasi.spk}
+          kop={kop}
+          isRekomendasi={true}
+          onClose={() => setPreviewRkkRekomendasi(null)}
+        />
       )}
 
       {/* Modal Preview SPK */}
