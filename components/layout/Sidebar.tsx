@@ -20,6 +20,7 @@ import {
   Send,
   UserCog,
   Settings,
+  FileCheck,
 } from 'lucide-react';
 import { UserSession } from '@/types/nakes';
 
@@ -55,6 +56,11 @@ export function Sidebar({ userSession, onLogout, isMobileOpen = false, onCloseMo
                 href: `/anggota/${userSession?.memberId || '1'}`,
                 icon: Users,
               },
+              {
+                name: 'Dokumen RKK dan SPK',
+                href: '/dokumen-rkk-spk',
+                icon: FileCheck,
+              },
             ],
           },
         ]
@@ -66,6 +72,7 @@ export function Sidebar({ userSession, onLogout, isMobileOpen = false, onCloseMo
               ...(permissions?.canRegisterNew !== false
                 ? [{ name: 'Pendaftaran Baru', href: '/anggota/baru', icon: UserPlus }]
                 : []),
+              { name: 'Dokumen RKK dan SPK', href: '/dokumen-rkk-spk', icon: FileCheck },
             ],
           },
           ...(isSuperadmin || permissions?.canAccessLetters

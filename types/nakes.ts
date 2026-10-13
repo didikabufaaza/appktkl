@@ -135,3 +135,52 @@ export interface KopSuratData {
   logoKiriUrl: string;
   logoKananUrl: string;
 }
+
+export interface RkkChecklistRow {
+  no: number;
+  kompetensi: string;
+  dimintaM: boolean;
+  dimintaDS: boolean;
+  disetujuiM: boolean;
+  disetujuiDS: boolean;
+  ket?: string;
+}
+
+export interface RkkItem {
+  id: string;
+  memberId?: string;
+  nama: string;
+  nip?: string;
+  profesi: string;
+  kualifikasi?: string;
+  alumni?: string;
+  checklistData: RkkChecklistRow[];
+  tanggal: string;
+  namaPemohon: string;
+  namaAsesor: string;
+  nipAsesor?: string;
+  status: 'Draft' | 'Diajukan' | 'Disetujui';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SpkItem {
+  id: string;
+  rkkId?: string;
+  memberId?: string;
+  nomorSurat: string;
+  nama: string;
+  gelar?: string;
+  kualifikasi: string;
+  profesi: string;
+  pelayanan?: string;
+  masaBerlakuTahun?: string;
+  tanggalDitetapkan: string;
+  tempatDitetapkan?: string;
+  namaDirektur: string;
+  pangkatDirektur?: string;
+  nipDirektur?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+

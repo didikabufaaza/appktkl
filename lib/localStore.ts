@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { NakesMember, UserPermissions, UserOverride, KopSuratData } from '@/types/nakes';
+import { NakesMember, UserPermissions, UserOverride, KopSuratData, RkkItem, SpkItem } from '@/types/nakes';
 
 // Global in-memory storage fallback for Vercel Serverless / Read-Only Filesystems
 declare global {
@@ -8,6 +8,8 @@ declare global {
   var __ktklPermissions: Record<string, Partial<UserPermissions>> | undefined;
   var __ktklUserOverrides: Record<string, UserOverride> | undefined;
   var __ktklKopSurat: KopSuratData | undefined;
+  var __ktklRkk: RkkItem[] | undefined;
+  var __ktklSpk: SpkItem[] | undefined;
 }
 
 const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
@@ -19,6 +21,8 @@ const OVERRIDES_FILE = path.join(DATA_DIR, 'overrides.json');
 const PERMISSIONS_FILE = path.join(DATA_DIR, 'permissions.json');
 const USER_OVERRIDES_FILE = path.join(DATA_DIR, 'user_overrides.json');
 const KOP_SURAT_FILE = path.join(DATA_DIR, 'kop_surat.json');
+const RKK_FILE = path.join(DATA_DIR, 'rkk.json');
+const SPK_FILE = path.join(DATA_DIR, 'spk.json');
 
 export interface LocalOverrides {
   updates: Record<string, Partial<NakesMember>>;
@@ -212,3 +216,68 @@ export function writeKopSurat(data: KopSuratData) {
     // Silently fallback to in-memory on read-only filesystems (Vercel)
   }
 }
+
+// ==========================================
+// RKK (Rincian Kewenangan Klinis) Store
+// ==========================================
+export function readRkkData(): RkkItem[] {
+  if (globalThis.__ktklRkk) {
+    return globalThis.__ktklRkk;
+  }
+  try {
+    ensureDataDir();
+    if (fs.existsSync(RKK_FILE)) {
+      const raw = fs.readFileSync(RKK_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      globalThis.__ktklRkk = Array.isArray(parsed) ? parsed : [];
+      return globalThis.__ktklRkk!;
+    }
+  } catch (e) {
+    // Ignore read errors
+  }
+  globalThis.__ktklRkk = [];
+  return globalThis.__ktklRkk;
+}
+
+export function writeRkkData(data: RkkItem[]) {
+  globalThis.__ktklRkk = data;
+  try {
+    ensureDataDir();
+    fs.writeFileSync(RKK_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    // Fallback to in-memory
+  }
+}
+
+// ==========================================
+// SPK (Surat Penugasan Klinis) Store
+// ==========================================
+export function readSpkData(): SpkItem[] {
+  if (globalThis.__ktklSpk) {
+    return globalThis.__ktklSpk;
+  }
+  try {
+    ensureDataDir();
+    if (fs.existsSync(SPK_FILE)) {
+      const raw = fs.readFileSync(SPK_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      globalThis.__ktklSpk = Array.isArray(parsed) ? parsed : [];
+      return globalThis.__ktklSpk!;
+    }
+  } catch (e) {
+    // Ignore read errors
+  }
+  globalThis.__ktklSpk = [];
+  return globalThis.__ktklSpk;
+}
+
+export function writeSpkData(data: SpkItem[]) {
+  globalThis.__ktklSpk = data;
+  try {
+    ensureDataDir();
+    fs.writeFileSync(SPK_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    // Fallback to in-memory
+  }
+}
+
