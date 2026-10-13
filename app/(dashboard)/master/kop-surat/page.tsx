@@ -22,11 +22,37 @@ export default function KopSuratPage() {
   const [uploadingRight, setUploadingRight] = useState(false);
 
   useEffect(() => {
+    // 1. Initial fallback from localStorage to prevent any logo loss across sessions
+    const localKop = typeof window !== 'undefined' ? localStorage.getItem('appktkl_kop_surat') : null;
+    if (localKop) {
+      try {
+        const parsed = JSON.parse(localKop);
+        setData((prev) => ({
+          ...prev,
+          ...parsed,
+          logoKiriUrl: parsed.logoKiriUrl || prev.logoKiriUrl,
+          logoKananUrl: parsed.logoKananUrl || prev.logoKananUrl,
+        }));
+      } catch (e) {}
+    }
+
+    // 2. Load from server
     fetch('/api/master/kop-surat')
       .then((res) => res.json())
       .then((res) => {
         if (res.success && res.data) {
-          setData(res.data);
+          setData((prev) => {
+            const merged = {
+              ...prev,
+              ...res.data,
+              logoKiriUrl: res.data.logoKiriUrl || prev.logoKiriUrl,
+              logoKananUrl: res.data.logoKananUrl || prev.logoKananUrl,
+            };
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('appktkl_kop_surat', JSON.stringify(merged));
+            }
+            return merged;
+          });
         }
       })
       .catch((err) => toast.error('Gagal memuat pengaturan Kop Surat.'))
@@ -56,10 +82,14 @@ export default function KopSuratPage() {
       });
       const result = await res.json();
       if (result.success && result.data?.url) {
-        setData((prev) => ({
-          ...prev,
-          [position === 'kiri' ? 'logoKiriUrl' : 'logoKananUrl']: result.data.url,
-        }));
+        const key = position === 'kiri' ? 'logoKiriUrl' : 'logoKananUrl';
+        setData((prev) => {
+          const next = { ...prev, [key]: result.data.url };
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('appktkl_kop_surat', JSON.stringify(next));
+          }
+          return next;
+        });
         toast.success(`Logo ${position} berhasil diunggah!`);
       } else {
         toast.error(result.message || 'Gagal mengunggah logo.');
@@ -77,6 +107,11 @@ export default function KopSuratPage() {
     setSaving(true);
 
     try {
+      // Always persist to browser localStorage immediately so it never disappears
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_kop_surat', JSON.stringify(data));
+      }
+
       const res = await fetch('/api/master/kop-surat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -86,7 +121,7 @@ export default function KopSuratPage() {
       if (resJson.success) {
         toast.success('Pengaturan Kop Surat berhasil disimpan!');
       } else {
-        toast.error(resJson.message || 'Gagal menyimpan.');
+        toast.error(resJson.message || 'Gagal menyimpan ke server.');
       }
     } catch (err) {
       toast.error('Terjadi kesalahan koneksi.');
