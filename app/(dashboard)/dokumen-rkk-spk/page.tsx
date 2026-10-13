@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FileCheck,
   Award,
@@ -21,11 +21,14 @@ import {
   Calendar,
   Building,
   UserCheck,
+  Edit3,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { NakesMember, RkkItem, SpkItem, RkkChecklistRow, KopSuratData, UserSession } from '@/types/nakes';
 import { getCompetenciesByProfesi, RKK_COMPETENCY_MAP } from '@/lib/rkkCompetencies';
-import { RkkDocumentPreview } from '@/components/rkk-spk/RkkDocumentPreview';
+import { RkkDocumentPreview, getKesimpulanRkk } from '@/components/rkk-spk/RkkDocumentPreview';
 import { SpkDocumentPreview } from '@/components/rkk-spk/SpkDocumentPreview';
 
 export default function DokumenRkkSpkPage() {
@@ -41,6 +44,10 @@ export default function DokumenRkkSpkPage() {
   // Active preview modals
   const [previewRkk, setPreviewRkk] = useState<RkkItem | null>(null);
   const [previewSpk, setPreviewSpk] = useState<SpkItem | null>(null);
+
+  // Edit Modal State
+  const [editingRkk, setEditingRkk] = useState<RkkItem | null>(null);
+  const [editingSpk, setEditingSpk] = useState<SpkItem | null>(null);
 
   // Filters for Tab 1 (Daftar)
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,6 +87,11 @@ export default function DokumenRkkSpkPage() {
     `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`
   );
 
+  // Searchable Member Picker States for Tab 3
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
+  const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
+  const memberDropdownRef = useRef<HTMLDivElement>(null);
+
   function toRomanMonth(m: number): string {
     const romans = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
     return romans[m - 1] || 'X';
@@ -97,11 +109,11 @@ export default function DokumenRkkSpkPage() {
         fetch('/api/auth/me').then((r) => r.json()),
       ]);
 
-      if (membersRes.success && membersRes.data) setMembers(membersRes.data);
-      if (rkkRes.success && rkkRes.data) setRkkList(rkkRes.data);
-      if (spkRes.success && spkRes.data) setSpkList(spkRes.data);
-      if (kopRes.success && kopRes.data) setKop(kopRes.data);
-      if (authRes.success && authRes.user) setUserSession(authRes.user);
+      if (membersRes?.success && membersRes.data) setMembers(membersRes.data);
+      if (rkkRes?.success && rkkRes.data) setRkkList(rkkRes.data);
+      if (spkRes?.success && spkRes.data) setSpkList(spkRes.data);
+      if (kopRes?.success && kopRes.data) setKop(kopRes.data);
+      if (authRes?.success && authRes.user) setUserSession(authRes.user);
     } catch (e) {
       toast.error('Gagal memuat data dokumen.');
     } finally {
@@ -111,6 +123,17 @@ export default function DokumenRkkSpkPage() {
 
   useEffect(() => {
     loadAllData();
+  }, []);
+
+  // Close member dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (memberDropdownRef.current && !memberDropdownRef.current.contains(event.target as Node)) {
+        setIsMemberDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Update bulk checklist when bulk profession changes
@@ -153,17 +176,29 @@ export default function DokumenRkkSpkPage() {
     );
   }, [singleProfesi]);
 
+  // Filtered members for Searchable Combobox in Tab 3
+  const candidateMembersForSingle = useMemo(() => {
+    if (!memberSearchTerm.trim()) return members;
+    const q = memberSearchTerm.toLowerCase();
+    return members.filter((m) => {
+      const matchName = m.namaLengkap.toLowerCase().includes(q);
+      const matchNip = (m.nip || m.nomorAnggota || '').toLowerCase().includes(q);
+      const matchProf = (m.profesi || '').toLowerCase().includes(q);
+      return matchName || matchNip || matchProf;
+    });
+  }, [members, memberSearchTerm]);
+
   // Handle single member selection
-  const handleSelectMemberForSingle = (id: string) => {
-    setSingleMemberId(id);
-    const m = members.find((x) => x.id === id);
-    if (!m) return;
+  const handleSelectMemberForSingle = (m: NakesMember) => {
+    setSingleMemberId(m.id);
     setSingleNama(m.namaLengkap);
     setSingleNip(m.nip || m.nomorAnggota || '');
     setSingleProfesi(m.profesi || 'ATLM');
     setSingleKualifikasi(m.pendidikan || '');
     setSingleAlumni(m.asalPendidikan || '');
     setSinglePelayanan(m.profesi || '');
+    setMemberSearchTerm(m.namaLengkap);
+    setIsMemberDropdownOpen(false);
   };
 
   // Helper for quick bulk actions
@@ -244,6 +279,10 @@ export default function DokumenRkkSpkPage() {
         spkItems.push(spk);
       });
 
+      // Optimistic update so it immediately appears in Daftar Dokumen
+      setRkkList((prev) => [...rkkItems, ...prev]);
+      setSpkList((prev) => [...spkItems, ...prev]);
+
       // Save RKK
       await fetch('/api/rkk', {
         method: 'POST',
@@ -316,6 +355,10 @@ export default function DokumenRkkSpkPage() {
         nipDirektur: bulkNipDirektur,
       };
 
+      // Optimistic update
+      setRkkList((prev) => [rkk, ...prev]);
+      setSpkList((prev) => [spk, ...prev]);
+
       await fetch('/api/rkk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -338,32 +381,93 @@ export default function DokumenRkkSpkPage() {
     }
   };
 
-  // Delete Handlers
-  const handleDeleteRkk = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus dokumen RKK ini?')) return;
-    try {
-      const res = await fetch(`/api/rkk?id=${id}`, { method: 'DELETE' });
-      const j = await res.json();
-      if (j.success) {
-        toast.success('Dokumen RKK dihapus.');
-        loadAllData();
-      }
-    } catch (e) {
-      toast.error('Gagal menghapus.');
+  // Open Edit Modal
+  const handleOpenEdit = (r: RkkItem) => {
+    setEditingRkk(JSON.parse(JSON.stringify(r)));
+    const matched =
+      spkList.find((s) => s.rkkId === r.id || (s.memberId && s.memberId === r.memberId)) ||
+      spkList.find((s) => s.nama.toLowerCase() === r.nama.toLowerCase());
+
+    if (matched) {
+      setEditingSpk(JSON.parse(JSON.stringify(matched)));
+    } else {
+      setEditingSpk({
+        id: `SPK-${Date.now()}-${r.id}`,
+        rkkId: r.id,
+        memberId: r.memberId,
+        nomorSurat: `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`,
+        nama: r.nama,
+        kualifikasi: r.kualifikasi || r.profesi,
+        profesi: r.profesi,
+        pelayanan: r.profesi,
+        masaBerlakuTahun: '3 (tiga) tahun',
+        tanggalDitetapkan: r.tanggal || bulkTanggal,
+        tempatDitetapkan: 'TULUS AYU',
+        namaDirektur: bulkNamaDirektur,
+        pangkatDirektur: bulkPangkatDirektur,
+        nipDirektur: bulkNipDirektur,
+      });
     }
   };
 
-  const handleDeleteSpk = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus dokumen SPK ini?')) return;
+  // Save Edit Changes
+  const handleSaveEdit = async () => {
+    if (!editingRkk) return;
+    setSubmitting(true);
     try {
-      const res = await fetch(`/api/spk?id=${id}`, { method: 'DELETE' });
-      const j = await res.json();
-      if (j.success) {
-        toast.success('Dokumen SPK dihapus.');
-        loadAllData();
+      // 1. Save RKK
+      await fetch('/api/rkk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingRkk),
+      });
+
+      // 2. Save SPK
+      if (editingSpk) {
+        await fetch('/api/spk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editingSpk),
+        });
       }
+
+      // Optimistic updates
+      setRkkList((prev) => prev.map((item) => (item.id === editingRkk.id ? editingRkk : item)));
+      if (editingSpk) {
+        setSpkList((prev) => prev.map((item) => (item.id === editingSpk.id ? editingSpk : item)));
+      }
+
+      toast.success(`Perubahan dokumen RKK & SPK atas nama ${editingRkk.nama} berhasil disimpan!`);
+      setEditingRkk(null);
+      setEditingSpk(null);
+      loadAllData();
     } catch (e) {
-      toast.error('Gagal menghapus.');
+      toast.error('Gagal menyimpan perubahan dokumen.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Delete Document (Both RKK and SPK)
+  const handleDeleteDocument = async (rkkId: string, spkId?: string) => {
+    if (!confirm('Yakin ingin menghapus dokumen RKK dan SPK ini secara permanen?')) return;
+    try {
+      // Optimistic instant removal from UI
+      setRkkList((prev) => prev.filter((r) => r.id !== rkkId));
+      if (spkId) {
+        setSpkList((prev) => prev.filter((s) => s.id !== spkId && s.rkkId !== rkkId));
+      }
+
+      const p1 = fetch(`/api/rkk?id=${encodeURIComponent(rkkId)}`, { method: 'DELETE' });
+      const p2 = spkId
+        ? fetch(`/api/spk?id=${encodeURIComponent(spkId)}`, { method: 'DELETE' })
+        : Promise.resolve();
+
+      await Promise.all([p1, p2]);
+      toast.success('Dokumen RKK & SPK berhasil dihapus.');
+      loadAllData();
+    } catch (e) {
+      toast.error('Gagal menghapus dokumen.');
     }
   };
 
@@ -371,13 +475,24 @@ export default function DokumenRkkSpkPage() {
   const filteredRkkList = useMemo(() => {
     let list = rkkList;
     if (userSession?.role === 'user' && userSession.memberId) {
-      list = list.filter((r) => r.memberId === userSession.memberId || r.nama.toLowerCase() === userSession.nama.toLowerCase());
+      list = list.filter(
+        (r) =>
+          r.memberId === userSession.memberId ||
+          r.nama.toLowerCase() === (userSession.nama || '').toLowerCase()
+      );
     }
 
     return list.filter((r) => {
-      const matchP = filterProfesi === 'ALL' || r.profesi === filterProfesi;
+      const matchP =
+        filterProfesi === 'ALL' ||
+        r.profesi.toUpperCase().includes(filterProfesi.toUpperCase()) ||
+        filterProfesi.toUpperCase().includes(r.profesi.toUpperCase());
       const q = searchQuery.toLowerCase();
-      const matchQ = !q || r.nama.toLowerCase().includes(q) || (r.nip && r.nip.includes(q));
+      const matchQ =
+        !q ||
+        r.nama.toLowerCase().includes(q) ||
+        (r.nip && r.nip.includes(q)) ||
+        (r.profesi && r.profesi.toLowerCase().includes(q));
       return matchP && matchQ;
     });
   }, [rkkList, filterProfesi, searchQuery, userSession]);
@@ -454,7 +569,7 @@ export default function DokumenRkkSpkPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari nama anggota, NIP..."
+                placeholder="Cari nama anggota, NIP, profesi..."
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -489,10 +604,10 @@ export default function DokumenRkkSpkPage() {
             </div>
           </div>
 
-          {/* Table Container */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+          {/* Desktop Table Container (Hidden on mobile) */}
+          <div className="hidden sm:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className="bg-slate-950 text-slate-300 font-bold uppercase text-[11px] border-b border-slate-800">
                   <tr>
                     <th className="px-4 py-3.5 w-10">No</th>
@@ -500,8 +615,8 @@ export default function DokumenRkkSpkPage() {
                     <th className="px-4 py-3.5">Profesi</th>
                     <th className="px-4 py-3.5">Kualifikasi / Alumni</th>
                     <th className="px-4 py-3.5">Tanggal</th>
-                    <th className="px-4 py-3.5 text-center">Status RKK</th>
-                    <th className="px-4 py-3.5 text-right">Aksi Dokumen</th>
+                    <th className="px-4 py-3.5 text-center">Status</th>
+                    <th className="px-4 py-3.5 text-right min-w-[280px]">Aksi Dokumen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 text-slate-200">
@@ -514,7 +629,6 @@ export default function DokumenRkkSpkPage() {
                     </tr>
                   ) : (
                     filteredRkkList.map((r, idx) => {
-                      // Find matched SPK if any
                       const matchedSpk =
                         spkList.find((s) => s.rkkId === r.id || (s.memberId && s.memberId === r.memberId)) ||
                         spkList.find((s) => s.nama.toLowerCase() === r.nama.toLowerCase());
@@ -542,26 +656,26 @@ export default function DokumenRkkSpkPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
                               {/* View RKK */}
                               <button
                                 onClick={() => setPreviewRkk(r)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold transition"
                                 title="Lihat & Cetak RKK"
                               >
                                 <Eye className="w-3.5 h-3.5" />
-                                <span>RKK</span>
+                                <span>Lihat & Cetak RKK</span>
                               </button>
 
                               {/* View SPK */}
                               {matchedSpk ? (
                                 <button
                                   onClick={() => setPreviewSpk(matchedSpk)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold"
-                                  title="Lihat & Cetak SPK"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold transition"
+                                  title="Pratinjau SPK"
                                 >
                                   <Award className="w-3.5 h-3.5" />
-                                  <span>SPK</span>
+                                  <span>Pratinjau SPK</span>
                                 </button>
                               ) : (
                                 <button
@@ -570,7 +684,7 @@ export default function DokumenRkkSpkPage() {
                                       id: `TEMP-${r.id}`,
                                       rkkId: r.id,
                                       memberId: r.memberId,
-                                      nomorSurat: `445/ 2261 / RSUD / X / ${new Date().getFullYear()}`,
+                                      nomorSurat: `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`,
                                       nama: r.nama,
                                       kualifikasi: r.kualifikasi || r.profesi,
                                       profesi: r.profesi,
@@ -584,20 +698,32 @@ export default function DokumenRkkSpkPage() {
                                     };
                                     setPreviewSpk(autoSpk);
                                   }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition"
                                   title="Pratinjau SPK"
                                 >
                                   <Award className="w-3.5 h-3.5" />
-                                  <span>SPK</span>
+                                  <span>Pratinjau SPK</span>
                                 </button>
                               )}
 
-                              {/* Delete RKK */}
+                              {/* Edit Document */}
                               {userSession?.role !== 'user' && (
                                 <button
-                                  onClick={() => handleDeleteRkk(r.id)}
+                                  onClick={() => handleOpenEdit(r)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition"
+                                  title="Edit Dokumen RKK & SPK"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                  <span>Edit</span>
+                                </button>
+                              )}
+
+                              {/* Delete Document */}
+                              {userSession?.role !== 'user' && (
+                                <button
+                                  onClick={() => handleDeleteDocument(r.id, matchedSpk?.id)}
                                   className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition"
-                                  title="Hapus Dokumen RKK"
+                                  title="Hapus Dokumen RKK & SPK"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -611,6 +737,118 @@ export default function DokumenRkkSpkPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile Card List View (Visible on mobile only: sm:hidden) */}
+          <div className="block sm:hidden space-y-3">
+            {filteredRkkList.length === 0 ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-500 italic text-xs">
+                Belum ada dokumen RKK yang dibuat.
+              </div>
+            ) : (
+              filteredRkkList.map((r, idx) => {
+                const matchedSpk =
+                  spkList.find((s) => s.rkkId === r.id || (s.memberId && s.memberId === r.memberId)) ||
+                  spkList.find((s) => s.nama.toLowerCase() === r.nama.toLowerCase());
+
+                return (
+                  <div key={r.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-mono text-slate-400">#{idx + 1}</span>
+                        <h3 className="font-bold text-slate-100 text-sm">{r.nama}</h3>
+                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">NIP: {r.nip || '-'}</p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                        {r.profesi}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">Kualifikasi:</span>
+                        <span className="font-medium text-slate-200">{r.kualifikasi || '-'}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">Alumni:</span>
+                        <span className="font-medium text-slate-200">{r.alumni || '-'}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">Tanggal:</span>
+                        <span className="font-mono text-slate-300">{r.tanggal}</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons Grid on Mobile */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => setPreviewRkk(r)}
+                        className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-teal-500/10 active:bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-bold"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Lihat & Cetak RKK</span>
+                      </button>
+
+                      {matchedSpk ? (
+                        <button
+                          onClick={() => setPreviewSpk(matchedSpk)}
+                          className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-blue-500/10 active:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-bold"
+                        >
+                          <Award className="w-3.5 h-3.5" />
+                          <span>Pratinjau SPK</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const autoSpk: SpkItem = {
+                              id: `TEMP-${r.id}`,
+                              rkkId: r.id,
+                              memberId: r.memberId,
+                              nomorSurat: `445/ 2261 / RSUD / ${toRomanMonth(new Date().getMonth() + 1)} / ${new Date().getFullYear()}`,
+                              nama: r.nama,
+                              kualifikasi: r.kualifikasi || r.profesi,
+                              profesi: r.profesi,
+                              pelayanan: r.profesi,
+                              masaBerlakuTahun: '3 (tiga) tahun',
+                              tanggalDitetapkan: r.tanggal,
+                              tempatDitetapkan: 'TULUS AYU',
+                              namaDirektur: bulkNamaDirektur,
+                              pangkatDirektur: bulkPangkatDirektur,
+                              nipDirektur: bulkNipDirektur,
+                            };
+                            setPreviewSpk(autoSpk);
+                          }}
+                          className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold"
+                        >
+                          <Award className="w-3.5 h-3.5" />
+                          <span>Pratinjau SPK</span>
+                        </button>
+                      )}
+
+                      {userSession?.role !== 'user' && (
+                        <>
+                          <button
+                            onClick={() => handleOpenEdit(r)}
+                            className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-amber-500/10 active:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Dokumen</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteDocument(r.id, matchedSpk?.id)}
+                            className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-rose-500/10 active:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Hapus Dokumen</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -753,31 +991,24 @@ export default function DokumenRkkSpkPage() {
                   <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
                   <span>Centang Semua Supervisi (DS)</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setAllBulkChecklist('RESET')}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-semibold transition"
-                >
-                  Reset
-                </button>
               </div>
             </div>
 
             {/* Checklist Table */}
             <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[650px]">
                 <thead className="bg-slate-900 text-slate-300 font-bold uppercase text-[11px] border-b border-slate-800">
                   <tr>
                     <th rowSpan={2} className="px-3 py-2 w-8 text-center">
                       No
                     </th>
                     <th rowSpan={2} className="px-4 py-2">
-                      Rincian Kewenangan Klinis (Kompetensi Baku)
+                      Rincian Kewenangan Klinis
                     </th>
-                    <th colSpan={2} className="px-2 py-1 text-center bg-slate-900/60 border-l border-slate-800">
+                    <th colSpan={2} className="px-2 py-1 text-center border-l border-slate-800">
                       DIMINTA
                     </th>
-                    <th colSpan={2} className="px-2 py-1 text-center bg-slate-900/60 border-l border-slate-800">
+                    <th colSpan={2} className="px-2 py-1 text-center border-l border-slate-800">
                       DISETUJUI
                     </th>
                     <th rowSpan={2} className="px-3 py-2 w-28 text-center border-l border-slate-800">
@@ -794,11 +1025,11 @@ export default function DokumenRkkSpkPage() {
                 <tbody className="divide-y divide-slate-800/80 text-slate-200">
                   {bulkChecklist.map((row, idx) => (
                     <tr key={row.no} className="hover:bg-slate-900/40 transition">
-                      <td className="px-3 py-2.5 text-center text-slate-400">{row.no}</td>
-                      <td className="px-4 py-2.5 font-medium">{row.kompetensi}</td>
+                      <td className="px-3 py-2 text-center text-slate-400">{row.no}</td>
+                      <td className="px-4 py-2 font-medium">{row.kompetensi}</td>
 
                       {/* Diminta M */}
-                      <td className="px-2 py-2.5 text-center border-l border-slate-800">
+                      <td className="px-2 py-2 text-center border-l border-slate-800">
                         <input
                           type="checkbox"
                           checked={row.dimintaM}
@@ -813,7 +1044,7 @@ export default function DokumenRkkSpkPage() {
                       </td>
 
                       {/* Diminta DS */}
-                      <td className="px-2 py-2.5 text-center">
+                      <td className="px-2 py-2 text-center">
                         <input
                           type="checkbox"
                           checked={row.dimintaDS}
@@ -828,7 +1059,7 @@ export default function DokumenRkkSpkPage() {
                       </td>
 
                       {/* Disetujui M */}
-                      <td className="px-2 py-2.5 text-center border-l border-slate-800">
+                      <td className="px-2 py-2 text-center border-l border-slate-800">
                         <input
                           type="checkbox"
                           checked={row.disetujuiM}
@@ -845,7 +1076,7 @@ export default function DokumenRkkSpkPage() {
                       </td>
 
                       {/* Disetujui DS */}
-                      <td className="px-2 py-2.5 text-center">
+                      <td className="px-2 py-2 text-center">
                         <input
                           type="checkbox"
                           checked={row.disetujuiDS}
@@ -861,7 +1092,7 @@ export default function DokumenRkkSpkPage() {
                         />
                       </td>
 
-                      {/* KET */}
+                      {/* Ket */}
                       <td className="px-2 py-2 text-center border-l border-slate-800">
                         <input
                           type="text"
@@ -881,20 +1112,28 @@ export default function DokumenRkkSpkPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Live Kesimpulan Preview */}
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs space-y-1">
+              <span className="font-bold text-slate-300">Kesimpulan Otomatis Dokumen RKK:</span>
+              <p className="text-emerald-400 font-medium italic">
+                &ldquo;{getKesimpulanRkk(bulkChecklist)}&rdquo;
+              </p>
+            </div>
           </div>
 
-          {/* Step 4: Signing Parameters (Asesor & Direktur) */}
+          {/* Step 4: Metadata Pengesahan & Direktur */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
             <h2 className="text-base font-bold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-3">
               <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">
                 3
               </span>
-              <span>Parameter Penandatangan & Penomoran Dokumen Masal</span>
+              <span>Pengaturan Tanggal, Asesor & Penandatangan SPK</span>
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Tanggal Dokumen (RKK & SPK):</label>
+                <label className="block text-slate-400 font-semibold mb-1">Tanggal Dokumen:</label>
                 <input
                   type="text"
                   value={bulkTanggal}
@@ -984,33 +1223,89 @@ export default function DokumenRkkSpkPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: BUAT DOKUMEN INDIVIDUAL                                             */}
+      {/* TAB 3: BUAT DOKUMEN INDIVIDUAL (DENGAN PENCARIAN NAMA DENGAN PENGETIKAN)  */}
       {/* ========================================================================= */}
       {activeTab === 'baru' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
           <div className="border-b border-slate-800 pb-4">
             <h2 className="text-base font-bold text-slate-100">Buat Dokumen RKK & SPK Individual</h2>
             <p className="text-xs text-slate-400 mt-1">
-              Pilih anggota dari database atau isi manual untuk membuat satu set dokumen RKK & SPK resmi.
+              Cari nama anggota terdaftar dengan mengetikkan namanya atau masukkan data secara mandiri.
             </p>
           </div>
 
-          {/* Member Picker */}
+          {/* Member Picker with Live Search Input */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="block text-slate-300 font-bold mb-1.5">Pilih dari Data Anggota Terdaftar:</label>
-              <select
-                value={singleMemberId}
-                onChange={(e) => handleSelectMemberForSingle(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
-              >
-                <option value="">-- Pilih Anggota (Contoh: Muhammad Didik Wahyudi) --</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.namaLengkap} - {m.profesi} (NIP: {m.nip || m.nomorAnggota || '-'})
-                  </option>
-                ))}
-              </select>
+            {/* Searchable Combobox for Members */}
+            <div className="relative" ref={memberDropdownRef}>
+              <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                <span>Pilih dari Data Anggota Terdaftar (Cari dengan Pengetikan):</span>
+                {singleNama && (
+                  <span className="text-[10px] text-emerald-400 font-normal">Anggota Terpilih</span>
+                )}
+              </label>
+
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={memberSearchTerm}
+                  onFocus={() => setIsMemberDropdownOpen(true)}
+                  onChange={(e) => {
+                    setMemberSearchTerm(e.target.value);
+                    setIsMemberDropdownOpen(true);
+                  }}
+                  placeholder="Ketik nama anggota atau NIP untuk mencari..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 font-semibold"
+                />
+                {memberSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMemberSearchTerm('');
+                      setSingleMemberId('');
+                      setIsMemberDropdownOpen(true);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown Results */}
+              {isMemberDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-slate-950 border border-slate-800 rounded-xl max-h-60 overflow-y-auto shadow-2xl divide-y divide-slate-800/60">
+                  {candidateMembersForSingle.length === 0 ? (
+                    <div className="p-3.5 text-center text-xs text-slate-500 italic">
+                      Tidak ada nama anggota yang cocok dengan &quot;{memberSearchTerm}&quot;
+                    </div>
+                  ) : (
+                    candidateMembersForSingle.map((m) => {
+                      const isSelected = singleMemberId === m.id;
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => handleSelectMemberForSingle(m)}
+                          className={`p-3 hover:bg-slate-800/80 cursor-pointer transition flex items-center justify-between ${
+                            isSelected ? 'bg-emerald-500/10' : ''
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold text-slate-100">{m.namaLengkap}</div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              NIP: {m.nip || m.nomorAnggota || '-'} | {m.pendidikan || 'Nakes'}
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {m.profesi}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -1101,11 +1396,22 @@ export default function DokumenRkkSpkPage() {
                 >
                   Centang Semua Mandiri (M)
                 </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSingleChecklist((prev) =>
+                      prev.map((r) => ({ ...r, dimintaM: false, dimintaDS: true, disetujuiM: false, disetujuiDS: true }))
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 text-[11px] font-bold"
+                >
+                  Centang Semua Supervisi (DS)
+                </button>
               </div>
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[650px]">
                 <thead className="bg-slate-900 text-slate-300 font-bold uppercase text-[11px] border-b border-slate-800">
                   <tr>
                     <th rowSpan={2} className="px-3 py-2 w-8 text-center">
@@ -1216,6 +1522,14 @@ export default function DokumenRkkSpkPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Live Kesimpulan Preview */}
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs space-y-1">
+              <span className="font-bold text-slate-300">Kesimpulan Otomatis Dokumen RKK:</span>
+              <p className="text-emerald-400 font-medium italic">
+                &ldquo;{getKesimpulanRkk(singleChecklist)}&rdquo;
+              </p>
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-800 flex justify-end">
@@ -1228,6 +1542,323 @@ export default function DokumenRkkSpkPage() {
               <span>Simpan & Terbitkan Dokumen RKK + SPK</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL EDIT DOKUMEN RKK & SPK                                               */}
+      {/* ========================================================================= */}
+      {editingRkk && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 max-w-4xl w-full rounded-2xl shadow-2xl overflow-hidden my-6 text-slate-100">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-amber-400" />
+                  <span>Edit Dokumen RKK & SPK</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {editingRkk.nama} ({editingRkk.profesi})
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingRkk(null);
+                  setEditingSpk(null);
+                }}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+              {/* Profile fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Nama Lengkap:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.nama}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, nama: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Profesi:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.profesi}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, profesi: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">NIP / Nomor Anggota:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.nip || ''}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, nip: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Kualifikasi / Pendidikan:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.kualifikasi || ''}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, kualifikasi: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Alumni / Institusi:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.alumni || ''}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, alumni: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Tanggal Dokumen:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.tanggal || ''}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, tanggal: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Nama Asesor:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.namaAsesor || ''}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, namaAsesor: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">NIP Asesor:</label>
+                  <input
+                    type="text"
+                    value={editingRkk.nipAsesor || ''}
+                    onChange={(e) => setEditingRkk({ ...editingRkk, nipAsesor: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                {editingSpk && (
+                  <div className="md:col-span-2">
+                    <label className="block text-slate-300 font-bold mb-1">Nomor Surat Keputusan SPK:</label>
+                    <input
+                      type="text"
+                      value={editingSpk.nomorSurat}
+                      onChange={(e) => setEditingSpk({ ...editingSpk, nomorSurat: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-mono font-bold"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Checklist Table */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-200">Rincian Kewenangan Klinis (Checklist):</h4>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingRkk({
+                          ...editingRkk,
+                          checklistData: editingRkk.checklistData.map((r) => ({
+                            ...r,
+                            dimintaM: true,
+                            dimintaDS: false,
+                            disetujuiM: true,
+                            disetujuiDS: false,
+                          })),
+                        })
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[11px] font-bold"
+                    >
+                      Centang Semua Mandiri (M)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingRkk({
+                          ...editingRkk,
+                          checklistData: editingRkk.checklistData.map((r) => ({
+                            ...r,
+                            dimintaM: false,
+                            dimintaDS: true,
+                            disetujuiM: false,
+                            disetujuiDS: true,
+                          })),
+                        })
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 text-[11px] font-bold"
+                    >
+                      Centang Semua Supervisi (DS)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+                  <table className="w-full text-left text-xs min-w-[650px]">
+                    <thead className="bg-slate-900 text-slate-300 font-bold uppercase text-[10px] border-b border-slate-800">
+                      <tr>
+                        <th rowSpan={2} className="px-3 py-2 w-8 text-center">
+                          No
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2">
+                          Kompetensi
+                        </th>
+                        <th colSpan={2} className="px-2 py-1 text-center border-l border-slate-800">
+                          DIMINTA
+                        </th>
+                        <th colSpan={2} className="px-2 py-1 text-center border-l border-slate-800">
+                          DISETUJUI
+                        </th>
+                        <th rowSpan={2} className="px-2 py-2 w-24 text-center border-l border-slate-800">
+                          KET
+                        </th>
+                      </tr>
+                      <tr className="bg-slate-900 text-slate-400 text-[9px]">
+                        <th className="px-1 py-1 text-center w-10 border-l border-slate-800">M</th>
+                        <th className="px-1 py-1 text-center w-10">DS</th>
+                        <th className="px-1 py-1 text-center w-10 border-l border-slate-800">M</th>
+                        <th className="px-1 py-1 text-center w-10">DS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-200">
+                      {editingRkk.checklistData.map((row, idx) => (
+                        <tr key={row.no} className="hover:bg-slate-900/40">
+                          <td className="px-3 py-2 text-center text-slate-400">{row.no}</td>
+                          <td className="px-3 py-2 font-medium">{row.kompetensi}</td>
+
+                          <td className="px-2 py-2 text-center border-l border-slate-800">
+                            <input
+                              type="checkbox"
+                              checked={row.dimintaM}
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                const updated = editingRkk.checklistData.map((r, i) =>
+                                  i === idx ? { ...r, dimintaM: val, dimintaDS: val ? false : r.dimintaDS } : r
+                                );
+                                setEditingRkk({ ...editingRkk, checklistData: updated });
+                              }}
+                              className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                            />
+                          </td>
+
+                          <td className="px-2 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={row.dimintaDS}
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                const updated = editingRkk.checklistData.map((r, i) =>
+                                  i === idx ? { ...r, dimintaDS: val, dimintaM: val ? false : r.dimintaM } : r
+                                );
+                                setEditingRkk({ ...editingRkk, checklistData: updated });
+                              }}
+                              className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                            />
+                          </td>
+
+                          <td className="px-2 py-2 text-center border-l border-slate-800">
+                            <input
+                              type="checkbox"
+                              checked={row.disetujuiM}
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                const updated = editingRkk.checklistData.map((r, i) =>
+                                  i === idx ? { ...r, disetujuiM: val, disetujuiDS: val ? false : r.disetujuiDS } : r
+                                );
+                                setEditingRkk({ ...editingRkk, checklistData: updated });
+                              }}
+                              className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                            />
+                          </td>
+
+                          <td className="px-2 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={row.disetujuiDS}
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                const updated = editingRkk.checklistData.map((r, i) =>
+                                  i === idx ? { ...r, disetujuiDS: val, disetujuiM: val ? false : r.disetujuiM } : r
+                                );
+                                setEditingRkk({ ...editingRkk, checklistData: updated });
+                              }}
+                              className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                            />
+                          </td>
+
+                          <td className="px-2 py-2 text-center border-l border-slate-800">
+                            <input
+                              type="text"
+                              value={row.ket || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const updated = editingRkk.checklistData.map((r, i) =>
+                                  i === idx ? { ...r, ket: val } : r
+                                );
+                                setEditingRkk({ ...editingRkk, checklistData: updated });
+                              }}
+                              className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-center text-[10px]"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Live Kesimpulan Preview in Edit Modal */}
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs space-y-1">
+                  <span className="font-bold text-slate-300">Kesimpulan Dokumen:</span>
+                  <p className="text-emerald-400 font-medium italic">
+                    &ldquo;{getKesimpulanRkk(editingRkk.checklistData)}&rdquo;
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRkk(null);
+                  setEditingSpk(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={submitting}
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 disabled:opacity-50"
+              >
+                Simpan Perubahan
+              </button>
+            </div>
           </div>
         </div>
       )}

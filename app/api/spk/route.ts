@@ -1,6 +1,6 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { fetchPublicSheetData, getSheetsClient, SPREADSHEET_ID } from '@/lib/googleSheets';
-import { readSpkData, writeSpkData } from '@/lib/localStore';
+import { readSpkData, writeSpkData, readDeletedSpkIds, saveDeletedSpkId } from '@/lib/localStore';
 import { SpkItem } from '@/types/nakes';
 
 export const dynamic = 'force-dynamic';
@@ -46,13 +46,18 @@ export async function GET(request: Request) {
     const rkkId = searchParams.get('rkkId');
     const profesi = searchParams.get('profesi');
 
+    const deletedSet = new Set(readDeletedSpkIds());
     const sheetItems = await getSpkFromSheet();
     const localItems = readSpkData();
 
     // Merge: sheet items + local items
     const map = new Map<string, SpkItem>();
-    sheetItems.forEach((item) => map.set(item.id, item));
-    localItems.forEach((item) => map.set(item.id, item));
+    sheetItems.forEach((item) => {
+      if (!deletedSet.has(item.id)) map.set(item.id, item);
+    });
+    localItems.forEach((item) => {
+      if (!deletedSet.has(item.id)) map.set(item.id, item);
+    });
 
     let results = Array.from(map.values());
 
@@ -156,9 +161,24 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, message: 'ID SPK wajib disertakan.' }, { status: 400 });
     }
 
-    const current = readSpkData();
-    const updated = current.filter((s) => s.id !== id);
-    writeSpkData(updated);
+    saveDeletedSpkId(id);
+
+    // If Google Apps Script exists, try deleting remotely too
+    if (GOOGLE_APPS_SCRIPT_URL) {
+      try {
+        await fetch(GOOGLE_APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'deleteRowById',
+            spreadsheetId: SPREADSHEET_ID,
+            sheetName: 'SPK',
+            id,
+          }),
+          redirect: 'follow',
+        }).catch(() => {});
+      } catch (e) {}
+    }
 
     return NextResponse.json({ success: true, message: 'Dokumen SPK berhasil dihapus.' });
   } catch (error: any) {

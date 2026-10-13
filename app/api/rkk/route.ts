@@ -1,6 +1,6 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { fetchPublicSheetData, getSheetsClient, SPREADSHEET_ID } from '@/lib/googleSheets';
-import { readRkkData, writeRkkData } from '@/lib/localStore';
+import { readRkkData, writeRkkData, readDeletedRkkIds, saveDeletedRkkId } from '@/lib/localStore';
 import { RkkItem, RkkChecklistRow } from '@/types/nakes';
 
 export const dynamic = 'force-dynamic';
@@ -52,13 +52,18 @@ export async function GET(request: Request) {
     const memberId = searchParams.get('memberId');
     const profesi = searchParams.get('profesi');
 
+    const deletedSet = new Set(readDeletedRkkIds());
     const sheetItems = await getRkkFromSheet();
     const localItems = readRkkData();
 
     // Merge: sheet items + local items (avoid duplicate id)
     const map = new Map<string, RkkItem>();
-    sheetItems.forEach((item) => map.set(item.id, item));
-    localItems.forEach((item) => map.set(item.id, item));
+    sheetItems.forEach((item) => {
+      if (!deletedSet.has(item.id)) map.set(item.id, item);
+    });
+    localItems.forEach((item) => {
+      if (!deletedSet.has(item.id)) map.set(item.id, item);
+    });
 
     let results = Array.from(map.values());
 
@@ -157,9 +162,24 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, message: 'ID RKK wajib disertakan.' }, { status: 400 });
     }
 
-    const current = readRkkData();
-    const updated = current.filter((r) => r.id !== id);
-    writeRkkData(updated);
+    saveDeletedRkkId(id);
+
+    // If Google Apps Script exists, try deleting remotely too
+    if (GOOGLE_APPS_SCRIPT_URL) {
+      try {
+        await fetch(GOOGLE_APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'deleteRowById',
+            spreadsheetId: SPREADSHEET_ID,
+            sheetName: 'RKK',
+            id,
+          }),
+          redirect: 'follow',
+        }).catch(() => {});
+      } catch (e) {}
+    }
 
     return NextResponse.json({ success: true, message: 'Dokumen RKK berhasil dihapus.' });
   } catch (error: any) {

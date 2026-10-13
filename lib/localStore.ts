@@ -10,6 +10,8 @@ declare global {
   var __ktklKopSurat: KopSuratData | undefined;
   var __ktklRkk: RkkItem[] | undefined;
   var __ktklSpk: SpkItem[] | undefined;
+  var __ktklDeletedRkkIds: string[] | undefined;
+  var __ktklDeletedSpkIds: string[] | undefined;
 }
 
 const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
@@ -23,6 +25,8 @@ const USER_OVERRIDES_FILE = path.join(DATA_DIR, 'user_overrides.json');
 const KOP_SURAT_FILE = path.join(DATA_DIR, 'kop_surat.json');
 const RKK_FILE = path.join(DATA_DIR, 'rkk.json');
 const SPK_FILE = path.join(DATA_DIR, 'spk.json');
+const DELETED_RKK_FILE = path.join(DATA_DIR, 'deleted_rkk.json');
+const DELETED_SPK_FILE = path.join(DATA_DIR, 'deleted_spk.json');
 
 export interface LocalOverrides {
   updates: Record<string, Partial<NakesMember>>;
@@ -220,17 +224,52 @@ export function writeKopSurat(data: KopSuratData) {
 // ==========================================
 // RKK (Rincian Kewenangan Klinis) Store
 // ==========================================
-export function readRkkData(): RkkItem[] {
+export function readDeletedRkkIds(): string[] {
+  if (globalThis.__ktklDeletedRkkIds) {
+    return globalThis.__ktklDeletedRkkIds;
+  }
+  try {
+    ensureDataDir();
+    if (fs.existsSync(DELETED_RKK_FILE)) {
+      const raw = fs.readFileSync(DELETED_RKK_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      globalThis.__ktklDeletedRkkIds = Array.isArray(parsed) ? parsed : [];
+      return globalThis.__ktklDeletedRkkIds;
+    }
+  } catch (e) {}
+  globalThis.__ktklDeletedRkkIds = [];
+  return globalThis.__ktklDeletedRkkIds;
+}
+
+export function saveDeletedRkkId(id: string) {
+  const current = readDeletedRkkIds();
+  if (!current.includes(id)) {
+    current.push(id);
+    globalThis.__ktklDeletedRkkIds = current;
+    try {
+      ensureDataDir();
+      fs.writeFileSync(DELETED_RKK_FILE, JSON.stringify(current, null, 2), 'utf-8');
+    } catch (e) {}
+  }
+  // Also filter from current in-memory
   if (globalThis.__ktklRkk) {
-    return globalThis.__ktklRkk;
+    globalThis.__ktklRkk = globalThis.__ktklRkk.filter((r) => r.id !== id);
+  }
+}
+
+export function readRkkData(): RkkItem[] {
+  const deleted = new Set(readDeletedRkkIds());
+  if (globalThis.__ktklRkk) {
+    return globalThis.__ktklRkk.filter((r) => !deleted.has(r.id));
   }
   try {
     ensureDataDir();
     if (fs.existsSync(RKK_FILE)) {
       const raw = fs.readFileSync(RKK_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      globalThis.__ktklRkk = Array.isArray(parsed) ? parsed : [];
-      return globalThis.__ktklRkk!;
+      const list = Array.isArray(parsed) ? parsed : [];
+      globalThis.__ktklRkk = list.filter((r: RkkItem) => !deleted.has(r.id));
+      return globalThis.__ktklRkk;
     }
   } catch (e) {
     // Ignore read errors
@@ -240,10 +279,12 @@ export function readRkkData(): RkkItem[] {
 }
 
 export function writeRkkData(data: RkkItem[]) {
-  globalThis.__ktklRkk = data;
+  const deleted = new Set(readDeletedRkkIds());
+  const cleanData = data.filter((r) => !deleted.has(r.id));
+  globalThis.__ktklRkk = cleanData;
   try {
     ensureDataDir();
-    fs.writeFileSync(RKK_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(RKK_FILE, JSON.stringify(cleanData, null, 2), 'utf-8');
   } catch (e) {
     // Fallback to in-memory
   }
@@ -252,17 +293,52 @@ export function writeRkkData(data: RkkItem[]) {
 // ==========================================
 // SPK (Surat Penugasan Klinis) Store
 // ==========================================
-export function readSpkData(): SpkItem[] {
+export function readDeletedSpkIds(): string[] {
+  if (globalThis.__ktklDeletedSpkIds) {
+    return globalThis.__ktklDeletedSpkIds;
+  }
+  try {
+    ensureDataDir();
+    if (fs.existsSync(DELETED_SPK_FILE)) {
+      const raw = fs.readFileSync(DELETED_SPK_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      globalThis.__ktklDeletedSpkIds = Array.isArray(parsed) ? parsed : [];
+      return globalThis.__ktklDeletedSpkIds;
+    }
+  } catch (e) {}
+  globalThis.__ktklDeletedSpkIds = [];
+  return globalThis.__ktklDeletedSpkIds;
+}
+
+export function saveDeletedSpkId(id: string) {
+  const current = readDeletedSpkIds();
+  if (!current.includes(id)) {
+    current.push(id);
+    globalThis.__ktklDeletedSpkIds = current;
+    try {
+      ensureDataDir();
+      fs.writeFileSync(DELETED_SPK_FILE, JSON.stringify(current, null, 2), 'utf-8');
+    } catch (e) {}
+  }
+  // Also filter from in-memory
   if (globalThis.__ktklSpk) {
-    return globalThis.__ktklSpk;
+    globalThis.__ktklSpk = globalThis.__ktklSpk.filter((s) => s.id !== id && s.rkkId !== id);
+  }
+}
+
+export function readSpkData(): SpkItem[] {
+  const deleted = new Set(readDeletedSpkIds());
+  if (globalThis.__ktklSpk) {
+    return globalThis.__ktklSpk.filter((s) => !deleted.has(s.id));
   }
   try {
     ensureDataDir();
     if (fs.existsSync(SPK_FILE)) {
       const raw = fs.readFileSync(SPK_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      globalThis.__ktklSpk = Array.isArray(parsed) ? parsed : [];
-      return globalThis.__ktklSpk!;
+      const list = Array.isArray(parsed) ? parsed : [];
+      globalThis.__ktklSpk = list.filter((s: SpkItem) => !deleted.has(s.id));
+      return globalThis.__ktklSpk;
     }
   } catch (e) {
     // Ignore read errors
@@ -272,10 +348,12 @@ export function readSpkData(): SpkItem[] {
 }
 
 export function writeSpkData(data: SpkItem[]) {
-  globalThis.__ktklSpk = data;
+  const deleted = new Set(readDeletedSpkIds());
+  const cleanData = data.filter((s) => !deleted.has(s.id));
+  globalThis.__ktklSpk = cleanData;
   try {
     ensureDataDir();
-    fs.writeFileSync(SPK_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(SPK_FILE, JSON.stringify(cleanData, null, 2), 'utf-8');
   } catch (e) {
     // Fallback to in-memory
   }

@@ -1,11 +1,20 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { Printer, Download, X } from 'lucide-react';
-import { RkkItem, KopSuratData } from '@/types/nakes';
+import { RkkItem, KopSuratData, RkkChecklistRow } from '@/types/nakes';
 import { getMemberPhotoUrl } from '@/utils/imageUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+export function getKesimpulanRkk(checklist: RkkChecklistRow[]): string {
+  if (!checklist || checklist.length === 0) return '';
+  const hasDS = checklist.some((row) => row.disetujuiDS);
+  if (hasDS) {
+    return 'Yang bersangkutan dapat menjalankan tugas secara MANDIRI pada tindakan yang dinilai M/Mandiri dan dapat menjalankan tugas DI BAWAH SUPERVISI pada tindakan yang dinilai DS/DI BAWAH SUPERVISI oleh assesor.';
+  }
+  return 'Yang bersangkutan dapat menjalankan tugas sesuai RKK di atas secara MANDIRI.';
+}
 
 interface RkkDocumentPreviewProps {
   rkk: RkkItem;
@@ -171,9 +180,21 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
       },
     });
 
+    // Kesimpulan
+    const kesimpulanText = getKesimpulanRkk(rkk.checklistData);
+    const tableFinalY = (doc as any).lastAutoTable.finalY + 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Kesimpulan:', 14, tableFinalY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const splitKesimpulan = doc.splitTextToSize(kesimpulanText, pageWidth - 28);
+    doc.text(splitKesimpulan, 14, tableFinalY + 4);
+
     // Signature Footer
-    const finalY = (doc as any).lastAutoTable.finalY + 8;
-    const signY = finalY > 230 ? 245 : finalY;
+    const signY = tableFinalY + 4 + splitKesimpulan.length * 3.5 + 4;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -348,6 +369,14 @@ export function RkkDocumentPreview({ rkk, kop, onClose }: RkkDocumentPreviewProp
               ))}
             </tbody>
           </table>
+
+          {/* Kesimpulan Section */}
+          <div className="mb-6 text-xs">
+            <p className="font-bold mb-1.5 text-slate-900 uppercase tracking-wide">Kesimpulan:</p>
+            <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 leading-relaxed font-medium text-justify">
+              {getKesimpulanRkk(rkk.checklistData)}
+            </div>
+          </div>
 
           {/* Date & Signatures */}
           <div className="pt-2 text-xs">
