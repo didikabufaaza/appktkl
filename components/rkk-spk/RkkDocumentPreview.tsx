@@ -191,35 +191,78 @@ export function RkkDocumentPreview({
     currentY += 4;
 
     // Table
-    const tableBody = rkk.checklistData.map((row) => [
-      row.no,
-      row.kompetensi,
-      row.dimintaM ? 'CHECKED' : '',
-      row.dimintaDS ? 'CHECKED' : '',
-      row.disetujuiM ? 'CHECKED' : '',
-      row.disetujuiDS ? 'CHECKED' : '',
-      row.ket || '',
-    ]);
+    const tableBody = isRekomendasi
+      ? rkk.checklistData.map((row) => [
+          row.no,
+          row.kompetensi,
+          row.disetujuiM ? 'CHECKED' : '',
+          row.disetujuiDS ? 'CHECKED' : '',
+        ])
+      : rkk.checklistData.map((row) => [
+          row.no,
+          row.kompetensi,
+          row.dimintaM ? 'CHECKED' : '',
+          row.dimintaDS ? 'CHECKED' : '',
+          row.disetujuiM ? 'CHECKED' : '',
+          row.disetujuiDS ? 'CHECKED' : '',
+          row.ket || '',
+        ]);
+
+    const tableHead: any = isRekomendasi
+      ? [
+          [
+            { content: 'No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'Rincian Kewenangan Klinis (Kompetensi)', rowSpan: 2, styles: { valign: 'middle' } },
+            { content: 'DISETUJUI', colSpan: 2, styles: { halign: 'center' } },
+          ],
+          [
+            { content: 'M', styles: { halign: 'center' } },
+            { content: 'DS', styles: { halign: 'center' } },
+          ],
+        ]
+      : [
+          [
+            { content: 'No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+            { content: 'Rincian Kewenangan Klinis (Kompetensi)', rowSpan: 2, styles: { valign: 'middle' } },
+            { content: 'DIMINTA', colSpan: 2, styles: { halign: 'center' } },
+            { content: 'DISETUJUI', colSpan: 2, styles: { halign: 'center' } },
+            { content: 'KET', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          ],
+          [
+            { content: 'M', styles: { halign: 'center' } },
+            { content: 'DS', styles: { halign: 'center' } },
+            { content: 'M', styles: { halign: 'center' } },
+            { content: 'DS', styles: { halign: 'center' } },
+          ],
+        ];
+
+    const columnStyles: any = isRekomendasi
+      ? {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 120 },
+          2: { cellWidth: 15, halign: 'center' },
+          3: { cellWidth: 15, halign: 'center' },
+        }
+      : {
+          0: { cellWidth: 8, halign: 'center' },
+          1: { cellWidth: 96 },
+          2: { cellWidth: 12, halign: 'center' },
+          3: { cellWidth: 12, halign: 'center' },
+          4: { cellWidth: 12, halign: 'center' },
+          5: { cellWidth: 12, halign: 'center' },
+          6: { cellWidth: 8, halign: 'center' },
+        };
+
+    const isChecklistCol = (colIdx: number) => {
+      if (isRekomendasi) return colIdx === 2 || colIdx === 3;
+      return colIdx >= 2 && colIdx <= 5;
+    };
 
     autoTable(doc, {
       startY: currentY,
       margin: { left: marginLeft, right: marginRight, top: 20, bottom: 20 },
       tableWidth: printableWidth,
-      head: [
-        [
-          { content: 'No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-          { content: 'Rincian Kewenangan Klinis (Kompetensi)', rowSpan: 2, styles: { valign: 'middle' } },
-          { content: 'DIMINTA', colSpan: 2, styles: { halign: 'center' } },
-          { content: 'DISETUJUI', colSpan: 2, styles: { halign: 'center' } },
-          { content: 'KET', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-        ],
-        [
-          { content: 'M', styles: { halign: 'center' } },
-          { content: 'DS', styles: { halign: 'center' } },
-          { content: 'M', styles: { halign: 'center' } },
-          { content: 'DS', styles: { halign: 'center' } },
-        ],
-      ],
+      head: tableHead,
       body: tableBody,
       styles: {
         font: 'helvetica',
@@ -235,18 +278,10 @@ export function RkkDocumentPreview({
         font: 'helvetica',
         fontSize: 9.5,
       },
-      columnStyles: {
-        0: { cellWidth: 8, halign: 'center' },
-        1: { cellWidth: 96 },
-        2: { cellWidth: 12, halign: 'center' },
-        3: { cellWidth: 12, halign: 'center' },
-        4: { cellWidth: 12, halign: 'center' },
-        5: { cellWidth: 12, halign: 'center' },
-        6: { cellWidth: 8, halign: 'center' },
-      },
+      columnStyles,
       didParseCell: (data) => {
         // Clear text for checklist columns so Helvetica won't print dots
-        if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 5) {
+        if (data.section === 'body' && isChecklistCol(data.column.index)) {
           if (data.cell.raw === 'CHECKED') {
             data.cell.text = [];
           }
@@ -254,7 +289,7 @@ export function RkkDocumentPreview({
       },
       didDrawCell: (data) => {
         // Draw crisp vector checkmarks
-        if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 5) {
+        if (data.section === 'body' && isChecklistCol(data.column.index)) {
           if (data.cell.raw === 'CHECKED') {
             const x = data.cell.x + data.cell.width / 2;
             const y = data.cell.y + data.cell.height / 2;
@@ -478,21 +513,29 @@ export function RkkDocumentPreview({
                   <th rowSpan={2} className="border border-slate-400 px-3 py-2 text-left">
                     Rincian Kewenangan Klinis (Kompetensi)
                   </th>
-                  <th colSpan={2} className="border border-slate-400 px-2 py-1">
-                    DIMINTA
-                  </th>
+                  {!isRekomendasi && (
+                    <th colSpan={2} className="border border-slate-400 px-2 py-1">
+                      DIMINTA
+                    </th>
+                  )}
                   <th colSpan={2} className="border border-slate-400 px-2 py-1">
                     DISETUJUI
                   </th>
-                  <th rowSpan={2} className="border border-slate-400 px-2 py-2 w-16">
-                    KET
-                  </th>
+                  {!isRekomendasi && (
+                    <th rowSpan={2} className="border border-slate-400 px-2 py-2 w-16">
+                      KET
+                    </th>
+                  )}
                 </tr>
                 <tr className="bg-slate-100 font-bold text-center border-b border-slate-400 text-[10px]">
-                  <th className="border border-slate-400 px-2 py-1 w-12">M</th>
-                  <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
-                  <th className="border border-slate-400 px-2 py-1 w-12">M</th>
-                  <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
+                  {!isRekomendasi && (
+                    <>
+                      <th className="border border-slate-400 px-2 py-1 w-12">M</th>
+                      <th className="border border-slate-400 px-2 py-1 w-12">DS</th>
+                    </>
+                  )}
+                  <th className={`border border-slate-400 px-2 py-1 ${isRekomendasi ? 'w-16' : 'w-12'}`}>M</th>
+                  <th className={`border border-slate-400 px-2 py-1 ${isRekomendasi ? 'w-16' : 'w-12'}`}>DS</th>
                 </tr>
               </thead>
               <tbody>
@@ -500,24 +543,28 @@ export function RkkDocumentPreview({
                   <tr key={row.no} className="border-b border-slate-300">
                     <td className="border border-slate-400 px-2 py-2 text-center font-medium">{row.no}</td>
                     <td className="border border-slate-400 px-3 py-2">{row.kompetensi}</td>
-                    <td className="border border-slate-400 px-2 py-2 text-center font-black text-emerald-700">
-                      {row.dimintaM ? (
-                        <span className="text-sm font-black text-emerald-800 print:text-black leading-none inline-block">
-                          &#10003;
-                        </span>
-                      ) : (
-                        ''
-                      )}
-                    </td>
-                    <td className="border border-slate-400 px-2 py-2 text-center font-black text-amber-700">
-                      {row.dimintaDS ? (
-                        <span className="text-sm font-black text-amber-800 print:text-black leading-none inline-block">
-                          &#10003;
-                        </span>
-                      ) : (
-                        ''
-                      )}
-                    </td>
+                    {!isRekomendasi && (
+                      <>
+                        <td className="border border-slate-400 px-2 py-2 text-center font-black text-emerald-700">
+                          {row.dimintaM ? (
+                            <span className="text-sm font-black text-emerald-800 print:text-black leading-none inline-block">
+                              &#10003;
+                            </span>
+                          ) : (
+                            ''
+                          )}
+                        </td>
+                        <td className="border border-slate-400 px-2 py-2 text-center font-black text-amber-700">
+                          {row.dimintaDS ? (
+                            <span className="text-sm font-black text-amber-800 print:text-black leading-none inline-block">
+                              &#10003;
+                            </span>
+                          ) : (
+                            ''
+                          )}
+                        </td>
+                      </>
+                    )}
                     <td className="border border-slate-400 px-2 py-2 text-center font-black text-emerald-700">
                       {row.disetujuiM ? (
                         <span className="text-sm font-black text-emerald-800 print:text-black leading-none inline-block">
@@ -536,9 +583,11 @@ export function RkkDocumentPreview({
                         ''
                       )}
                     </td>
-                    <td className="border border-slate-400 px-2 py-2 text-center text-[10px] text-slate-600">
-                      {row.ket || ''}
-                    </td>
+                    {!isRekomendasi && (
+                      <td className="border border-slate-400 px-2 py-2 text-center text-[10px] text-slate-600">
+                        {row.ket || ''}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
