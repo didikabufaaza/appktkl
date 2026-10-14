@@ -30,6 +30,7 @@ import { NakesMember, RkkItem, SpkItem, RkkChecklistRow, KopSuratData, UserSessi
 import { getCompetenciesByProfesi, RKK_COMPETENCY_MAP } from '@/lib/rkkCompetencies';
 import { RkkDocumentPreview, getKesimpulanRkk } from '@/components/rkk-spk/RkkDocumentPreview';
 import { SpkDocumentPreview } from '@/components/rkk-spk/SpkDocumentPreview';
+import { BulkDownloadModal } from '@/components/rkk-spk/BulkDownloadModal';
 
 export default function DokumenRkkSpkPage() {
   const [activeTab, setActiveTab] = useState<'daftar' | 'masal' | 'baru'>('daftar');
@@ -50,6 +51,9 @@ export default function DokumenRkkSpkPage() {
   const [editingRkk, setEditingRkk] = useState<RkkItem | null>(null);
   const [editingSpk, setEditingSpk] = useState<SpkItem | null>(null);
   const [editNewCompetencyText, setEditNewCompetencyText] = useState('');
+
+  // Bulk Download/Print Modal State per Profession
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   // Filters for Tab 1 (Daftar)
   const [searchQuery, setSearchQuery] = useState('');
@@ -865,18 +869,44 @@ export default function DokumenRkkSpkPage() {
                 <select
                   value={filterProfesi}
                   onChange={(e) => setFilterProfesi(e.target.value)}
-                  className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+                  className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer font-medium"
                 >
                   <option value="ALL" className="bg-slate-900">
-                    Semua Profesi
+                    Semua Profesi ({rkkList.length})
                   </option>
-                  {Object.keys(RKK_COMPETENCY_MAP).map((k) => (
-                    <option key={k} value={k} className="bg-slate-900">
-                      {RKK_COMPETENCY_MAP[k].label}
-                    </option>
-                  ))}
+                  {availableProfessionsList.map((k) => {
+                    const count = rkkList.filter((r) => {
+                      const p1 = (r.profesi || '').toUpperCase().trim();
+                      const p2 = k.toUpperCase().trim();
+                      return p1.includes(p2) || p2.includes(p1);
+                    }).length;
+                    return (
+                      <option key={k} value={k} className="bg-slate-900">
+                        {RKK_COMPETENCY_MAP[k]?.label || k} {count > 0 ? `(${count})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
+
+              {/* Tombol Cetak / Unduh Masal Dokumen per Profesi */}
+              <button
+                type="button"
+                onClick={() => setIsBulkModalOpen(true)}
+                disabled={filteredRkkList.length === 0}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                title={`Cetak atau Unduh Masal Dokumen RKK, RKK Rekomendasi, dan SPK untuk profesi ${
+                  filterProfesi === 'ALL' ? 'Semua Profesi' : filterProfesi
+                }`}
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5" />
+                <span>
+                  {filterProfesi === 'ALL'
+                    ? `Cetak/Unduh Masal (${filteredRkkList.length})`
+                    : `Cetak/Unduh Masal: ${filterProfesi} (${filteredRkkList.length})`}
+                </span>
+              </button>
 
               <button
                 onClick={loadAllData}
@@ -2488,6 +2518,16 @@ export default function DokumenRkkSpkPage() {
       {previewSpk && (
         <SpkDocumentPreview spk={previewSpk} kop={kop} onClose={() => setPreviewSpk(null)} />
       )}
+
+      {/* Modal Cetak & Unduh Masal Dokumen per Profesi */}
+      <BulkDownloadModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        filterProfesi={filterProfesi}
+        rkkList={rkkList}
+        spkList={spkList}
+        kop={kop}
+      />
     </div>
   );
 }
