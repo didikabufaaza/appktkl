@@ -56,13 +56,24 @@ export async function GET(request: Request) {
     const sheetItems = await getRkkFromSheet();
     const localItems = readRkkData();
 
-    // Merge: sheet items + local items (avoid duplicate id)
+    // Merge: sheet items + local items (avoid duplicate id, newer updatedAt wins)
     const map = new Map<string, RkkItem>();
     sheetItems.forEach((item) => {
       if (!deletedSet.has(item.id)) map.set(item.id, item);
     });
     localItems.forEach((item) => {
-      if (!deletedSet.has(item.id)) map.set(item.id, item);
+      if (!deletedSet.has(item.id)) {
+        const existing = map.get(item.id);
+        if (!existing) {
+          map.set(item.id, item);
+        } else {
+          const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const localTime = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+          if (localTime >= existingTime) {
+            map.set(item.id, item);
+          }
+        }
+      }
     });
 
     let results = Array.from(map.values());
@@ -102,31 +113,61 @@ export async function POST(request: Request) {
         ...item,
         id,
         createdAt: item.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
       };
       map.set(id, processed);
       processedItems.push(processed);
 
-      // Try appending to Google Sheets tab RKK if Google Apps Script URL exists
+      const rowValue = [
+        processed.id,
+        processed.memberId || '',
+        processed.nama,
+        processed.nip || '',
+        processed.profesi,
+        processed.kualifikasi || '',
+        processed.alumni || '',
+        JSON.stringify(processed.checklistData || []),
+        processed.tanggal || '',
+        processed.namaPemohon || '',
+        processed.namaAsesor || '',
+        processed.nipAsesor || '',
+        processed.status || 'Disetujui',
+        processed.updatedAt,
+      ];
+
+      // 1. Try Google Sheets API direct update/append
+      const sheets = getSheetsClient();
+      if (sheets) {
+        try {
+          const res = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: "'RKK'!A:A",
+          });
+          const rows = res.data.values || [];
+          const rowIndex = rows.findIndex((r: any) => r && String(r[0] || '').trim() === processed.id);
+          if (rowIndex >= 0) {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SPREADSHEET_ID,
+              range: `'RKK'!A${rowIndex + 1}:N${rowIndex + 1}`,
+              valueInputOption: 'USER_ENTERED',
+              requestBody: { values: [rowValue] },
+            });
+          } else {
+            await sheets.spreadsheets.values.append({
+              spreadsheetId: SPREADSHEET_ID,
+              range: "'RKK'!A:N",
+              valueInputOption: 'USER_ENTERED',
+              requestBody: { values: [rowValue] },
+            });
+          }
+        } catch (err) {
+          console.error('Direct Sheets API error for RKK:', err);
+        }
+      }
+
+      // 2. Try Google Apps Script fallback if configured
       if (GOOGLE_APPS_SCRIPT_URL) {
         try {
-          const rowValue = [
-            processed.id,
-            processed.memberId || '',
-            processed.nama,
-            processed.nip || '',
-            processed.profesi,
-            processed.kualifikasi || '',
-            processed.alumni || '',
-            JSON.stringify(processed.checklistData || []),
-            processed.tanggal || '',
-            processed.namaPemohon || '',
-            processed.namaAsesor || '',
-            processed.nipAsesor || '',
-            processed.status || 'Disetujui',
-            processed.updatedAt,
-          ];
-
           await fetch(GOOGLE_APPS_SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },

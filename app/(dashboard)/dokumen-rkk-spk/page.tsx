@@ -49,6 +49,7 @@ export default function DokumenRkkSpkPage() {
   // Edit Modal State
   const [editingRkk, setEditingRkk] = useState<RkkItem | null>(null);
   const [editingSpk, setEditingSpk] = useState<SpkItem | null>(null);
+  const [editNewCompetencyText, setEditNewCompetencyText] = useState('');
 
   // Filters for Tab 1 (Daftar)
   const [searchQuery, setSearchQuery] = useState('');
@@ -150,18 +151,26 @@ export default function DokumenRkkSpkPage() {
       const deletedRkkRaw = typeof window !== 'undefined' ? localStorage.getItem('appktkl_deleted_rkk') : null;
       const deletedRkkSet = new Set(deletedRkkRaw ? JSON.parse(deletedRkkRaw) : []);
 
-      // Merge RKK: server items + cached items
+      // Merge RKK: local cached items + server items (newer updatedAt wins, never lose local edits)
       const rkkMap = new Map<string, RkkItem>();
+      cachedRkk.forEach((item: RkkItem) => {
+        if (!deletedRkkSet.has(item.id)) rkkMap.set(item.id, item);
+      });
       if (rkkRes?.success && Array.isArray(rkkRes.data)) {
-        rkkRes.data.forEach((item: RkkItem) => {
-          if (!deletedRkkSet.has(item.id)) rkkMap.set(item.id, item);
+        rkkRes.data.forEach((serverItem: RkkItem) => {
+          if (deletedRkkSet.has(serverItem.id)) return;
+          const localItem = rkkMap.get(serverItem.id);
+          if (!localItem) {
+            rkkMap.set(serverItem.id, serverItem);
+          } else {
+            const localTime = localItem.updatedAt ? new Date(localItem.updatedAt).getTime() : 0;
+            const serverTime = serverItem.updatedAt ? new Date(serverItem.updatedAt).getTime() : 0;
+            if (serverTime > localTime) {
+              rkkMap.set(serverItem.id, serverItem);
+            }
+          }
         });
       }
-      cachedRkk.forEach((item: RkkItem) => {
-        if (!deletedRkkSet.has(item.id) && !rkkMap.has(item.id)) {
-          rkkMap.set(item.id, item);
-        }
-      });
 
       const mergedRkk = Array.from(rkkMap.values());
       setRkkList(mergedRkk);
@@ -169,20 +178,28 @@ export default function DokumenRkkSpkPage() {
         localStorage.setItem('appktkl_rkk_cache', JSON.stringify(mergedRkk));
       }
 
-      // Merge SPK
+      // Merge SPK: local cached items + server items (newer updatedAt wins, never lose local edits)
       const spkMap = new Map<string, SpkItem>();
-      if (spkRes?.success && Array.isArray(spkRes.data)) {
-        spkRes.data.forEach((item: SpkItem) => {
-          if (!deletedRkkSet.has(item.rkkId) && !deletedRkkSet.has(item.id)) {
-            spkMap.set(item.id, item);
-          }
-        });
-      }
       cachedSpk.forEach((item: SpkItem) => {
-        if (!deletedRkkSet.has(item.rkkId) && !deletedRkkSet.has(item.id) && !spkMap.has(item.id)) {
+        if (!deletedRkkSet.has(item.rkkId) && !deletedRkkSet.has(item.id)) {
           spkMap.set(item.id, item);
         }
       });
+      if (spkRes?.success && Array.isArray(spkRes.data)) {
+        spkRes.data.forEach((serverItem: SpkItem) => {
+          if (deletedRkkSet.has(serverItem.rkkId) || deletedRkkSet.has(serverItem.id)) return;
+          const localItem = spkMap.get(serverItem.id);
+          if (!localItem) {
+            spkMap.set(serverItem.id, serverItem);
+          } else {
+            const localTime = localItem.updatedAt ? new Date(localItem.updatedAt).getTime() : 0;
+            const serverTime = serverItem.updatedAt ? new Date(serverItem.updatedAt).getTime() : 0;
+            if (serverTime > localTime) {
+              spkMap.set(serverItem.id, serverItem);
+            }
+          }
+        });
+      }
 
       const mergedSpk = Array.from(spkMap.values());
       setSpkList(mergedSpk);
@@ -525,12 +542,32 @@ export default function DokumenRkkSpkPage() {
   // Open Edit Modal
   const handleOpenEdit = (r: RkkItem) => {
     setEditingRkk(JSON.parse(JSON.stringify(r)));
+    setEditNewCompetencyText('');
+
     const matched =
       spkList.find((s) => s.rkkId === r.id || (s.memberId && s.memberId === r.memberId)) ||
       spkList.find((s) => s.nama.toLowerCase() === r.nama.toLowerCase());
 
+    const defaultDirektur = bulkNamaDirektur || 'dr. Sugihartono, M.Sc.';
+    const defaultPangkat = bulkPangkatDirektur || 'Penata TK. I/ III d';
+    const defaultNipDir = bulkNipDirektur || '197606302005011003';
+    const defaultTempat = 'TULUS AYU';
+
     if (matched) {
-      setEditingSpk(JSON.parse(JSON.stringify(matched)));
+      setEditingSpk({
+        ...JSON.parse(JSON.stringify(matched)),
+        nama: matched.nama || r.nama,
+        profesi: matched.profesi || r.profesi,
+        kualifikasi: matched.kualifikasi || r.kualifikasi || r.profesi,
+        pelayanan: matched.pelayanan || r.profesi,
+        nomorSurat: matched.nomorSurat || '',
+        tanggalDitetapkan: matched.tanggalDitetapkan || r.tanggal || bulkTanggal,
+        tempatDitetapkan: matched.tempatDitetapkan || defaultTempat,
+        namaDirektur: matched.namaDirektur || defaultDirektur,
+        pangkatDirektur: matched.pangkatDirektur || defaultPangkat,
+        nipDirektur: matched.nipDirektur || defaultNipDir,
+        masaBerlakuTahun: matched.masaBerlakuTahun || '3 (tiga) tahun',
+      });
     } else {
       setEditingSpk({
         id: `SPK-${Date.now()}-${r.id}`,
@@ -543,12 +580,44 @@ export default function DokumenRkkSpkPage() {
         pelayanan: r.profesi,
         masaBerlakuTahun: '3 (tiga) tahun',
         tanggalDitetapkan: r.tanggal || bulkTanggal,
-        tempatDitetapkan: 'TULUS AYU',
-        namaDirektur: bulkNamaDirektur,
-        pangkatDirektur: bulkPangkatDirektur,
-        nipDirektur: bulkNipDirektur,
+        tempatDitetapkan: defaultTempat,
+        namaDirektur: defaultDirektur,
+        pangkatDirektur: defaultPangkat,
+        nipDirektur: defaultNipDir,
       });
     }
+  };
+
+  // Add new competency row in Edit Modal
+  const handleAddEditCompetencyRow = () => {
+    if (!editingRkk || !editNewCompetencyText.trim()) return;
+    const newRow: RkkChecklistRow = {
+      no: editingRkk.checklistData.length + 1,
+      kompetensi: editNewCompetencyText.trim(),
+      dimintaM: true,
+      dimintaDS: false,
+      disetujuiM: true,
+      disetujuiDS: false,
+      ket: '',
+    };
+    setEditingRkk({
+      ...editingRkk,
+      checklistData: [...editingRkk.checklistData, newRow],
+    });
+    setEditNewCompetencyText('');
+    toast.success('Butir kompetensi berhasil ditambahkan ke dokumen ini.');
+  };
+
+  // Delete competency row in Edit Modal
+  const handleDeleteEditCompetencyRow = (indexToDelete: number) => {
+    if (!editingRkk) return;
+    const updated = editingRkk.checklistData
+      .filter((_, idx) => idx !== indexToDelete)
+      .map((row, idx) => ({ ...row, no: idx + 1 }));
+    setEditingRkk({
+      ...editingRkk,
+      checklistData: updated,
+    });
   };
 
   // Save Edit Changes
@@ -556,54 +625,73 @@ export default function DokumenRkkSpkPage() {
     if (!editingRkk) return;
     setSubmitting(true);
     try {
+      const nowIso = new Date().toISOString();
+      const updatedRkk: RkkItem = {
+        ...editingRkk,
+        namaPemohon: editingRkk.namaPemohon || editingRkk.nama,
+        updatedAt: nowIso,
+      };
+
       // Synchronize changes to SPK
-      const updatedSpk = editingSpk
+      const updatedSpk: SpkItem | null = editingSpk
         ? {
             ...editingSpk,
-            nama: editingRkk.nama,
-            profesi: editingRkk.profesi,
-            kualifikasi: editingRkk.kualifikasi || editingRkk.profesi,
-            pelayanan: editingSpk.pelayanan || editingRkk.profesi,
-            tanggalDitetapkan: editingSpk.tanggalDitetapkan || editingRkk.tanggal,
+            nama: updatedRkk.nama,
+            profesi: updatedRkk.profesi,
+            kualifikasi: updatedRkk.kualifikasi || updatedRkk.profesi,
+            pelayanan: editingSpk.pelayanan || updatedRkk.profesi,
+            tanggalDitetapkan: editingSpk.tanggalDitetapkan || updatedRkk.tanggal,
             tempatDitetapkan: editingSpk.tempatDitetapkan || 'TULUS AYU',
-            nomorSurat: editingSpk.nomorSurat,
-            namaDirektur: editingSpk.namaDirektur || bulkNamaDirektur,
-            pangkatDirektur: editingSpk.pangkatDirektur || bulkPangkatDirektur,
-            nipDirektur: editingSpk.nipDirektur || bulkNipDirektur,
+            nomorSurat: editingSpk.nomorSurat || '',
+            namaDirektur: editingSpk.namaDirektur || '',
+            pangkatDirektur: editingSpk.pangkatDirektur || '',
+            nipDirektur: editingSpk.nipDirektur || '',
+            masaBerlakuTahun: editingSpk.masaBerlakuTahun || '3 (tiga) tahun',
+            updatedAt: nowIso,
           }
         : null;
 
-      // Update state and localStorage immediately
-      const newRkkList = rkkList.map((item) => (item.id === editingRkk.id ? editingRkk : item));
+      // 1. Update state and localStorage immediately
+      const newRkkList = rkkList.map((item) => (item.id === updatedRkk.id ? updatedRkk : item));
       setRkkList(newRkkList);
       if (typeof window !== 'undefined') {
         localStorage.setItem('appktkl_rkk_cache', JSON.stringify(newRkkList));
       }
 
       if (updatedSpk) {
-        const newSpkList = spkList.map((item) => (item.id === updatedSpk.id ? updatedSpk : item));
+        const spkIdx = spkList.findIndex(
+          (s) => s.id === updatedSpk.id || (s.rkkId && s.rkkId === updatedSpk.rkkId)
+        );
+        let newSpkList: SpkItem[];
+        if (spkIdx >= 0) {
+          newSpkList = spkList.map((s, idx) => (idx === spkIdx ? updatedSpk : s));
+        } else {
+          newSpkList = [updatedSpk, ...spkList];
+        }
         setSpkList(newSpkList);
         if (typeof window !== 'undefined') {
           localStorage.setItem('appktkl_spk_cache', JSON.stringify(newSpkList));
         }
       }
 
-      // Save to server
-      fetch('/api/rkk', {
+      // 2. Persist to server API
+      const rkkPromise = fetch('/api/rkk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingRkk),
-      }).catch(() => {});
+        body: JSON.stringify(updatedRkk),
+      });
 
-      if (updatedSpk) {
-        fetch('/api/spk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedSpk),
-        }).catch(() => {});
-      }
+      const spkPromise = updatedSpk
+        ? fetch('/api/spk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedSpk),
+          })
+        : Promise.resolve();
 
-      toast.success(`Perubahan dokumen RKK & SPK atas nama ${editingRkk.nama} berhasil disimpan!`);
+      await Promise.all([rkkPromise, spkPromise]);
+
+      toast.success(`Perubahan dokumen RKK & SPK atas nama ${updatedRkk.nama} berhasil disimpan!`);
       setEditingRkk(null);
       setEditingSpk(null);
     } catch (e) {
@@ -1929,44 +2017,74 @@ export default function DokumenRkkSpkPage() {
                   <label className="block text-slate-300 font-bold mb-1">Nama Lengkap:</label>
                   <input
                     type="text"
-                    value={editingRkk.nama}
-                    onChange={(e) => setEditingRkk({ ...editingRkk, nama: e.target.value })}
+                    value={editingRkk.nama ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingRkk({ ...editingRkk, nama: val });
+                      if (editingSpk) setEditingSpk({ ...editingSpk, nama: val });
+                    }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-bold"
                   />
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">Profesi:</label>
-                  <select
-                    value={editingRkk.profesi}
-                    onChange={(e) => {
-                      const newProf = e.target.value;
-                      setEditingRkk({ ...editingRkk, profesi: newProf });
-                      if (editingSpk) {
-                        setEditingSpk({
-                          ...editingSpk,
-                          profesi: newProf,
-                          pelayanan: newProf,
-                          kualifikasi: editingSpk.kualifikasi || newProf,
-                        });
+                  <div className="flex gap-2">
+                    <select
+                      value={
+                        availableProfessionsList.includes((editingRkk.profesi || '').toUpperCase().trim())
+                          ? (editingRkk.profesi || '').toUpperCase().trim()
+                          : 'LAINNYA'
                       }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-emerald-400 font-bold focus:outline-none focus:border-amber-500"
-                  >
-                    {Object.keys(RKK_COMPETENCY_MAP).map((k) => (
-                      <option key={k} value={k}>
-                        {RKK_COMPETENCY_MAP[k].label}
-                      </option>
-                    ))}
-                  </select>
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val !== 'LAINNYA') {
+                          setEditingRkk({ ...editingRkk, profesi: val });
+                          if (editingSpk) {
+                            setEditingSpk({
+                              ...editingSpk,
+                              profesi: val,
+                              pelayanan: val,
+                              kualifikasi: editingSpk.kualifikasi || val,
+                            });
+                          }
+                        }
+                      }}
+                      className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-emerald-400 font-bold focus:outline-none focus:border-amber-500"
+                    >
+                      {availableProfessionsList.map((k) => (
+                        <option key={k} value={k}>
+                          {RKK_COMPETENCY_MAP[k]?.label || k}
+                        </option>
+                      ))}
+                      <option value="LAINNYA">+ Ketik Profesi Manual...</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={editingRkk.profesi ?? ''}
+                      placeholder="Nama profesi..."
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingRkk({ ...editingRkk, profesi: val });
+                        if (editingSpk) {
+                          setEditingSpk({ ...editingSpk, profesi: val, pelayanan: val });
+                        }
+                      }}
+                      className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-bold"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">NIP / Nomor Anggota:</label>
                   <input
                     type="text"
-                    value={editingRkk.nip || ''}
-                    onChange={(e) => setEditingRkk({ ...editingRkk, nip: e.target.value })}
+                    value={editingRkk.nip ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingRkk({ ...editingRkk, nip: val });
+                      if (editingSpk) setEditingSpk({ ...editingSpk, memberId: val });
+                    }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
                   />
                 </div>
@@ -1975,7 +2093,7 @@ export default function DokumenRkkSpkPage() {
                   <label className="block text-slate-300 font-bold mb-1">Kualifikasi / Pendidikan:</label>
                   <input
                     type="text"
-                    value={editingRkk.kualifikasi || ''}
+                    value={editingRkk.kualifikasi ?? ''}
                     onChange={(e) => {
                       const val = e.target.value;
                       setEditingRkk({ ...editingRkk, kualifikasi: val });
@@ -1989,21 +2107,21 @@ export default function DokumenRkkSpkPage() {
                   <label className="block text-slate-300 font-bold mb-1">Alumni / Institusi:</label>
                   <input
                     type="text"
-                    value={editingRkk.alumni || ''}
+                    value={editingRkk.alumni ?? ''}
                     onChange={(e) => setEditingRkk({ ...editingRkk, alumni: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Tanggal Dokumen:</label>
+                  <label className="block text-slate-300 font-bold mb-1">Tanggal Dokumen RKK:</label>
                   <input
                     type="text"
-                    value={editingRkk.tanggal || ''}
+                    value={editingRkk.tanggal ?? ''}
                     onChange={(e) => {
                       const val = e.target.value;
                       setEditingRkk({ ...editingRkk, tanggal: val });
-                      if (editingSpk) {
+                      if (editingSpk && !editingSpk.tanggalDitetapkan) {
                         setEditingSpk({ ...editingSpk, tanggalDitetapkan: val });
                       }
                     }}
@@ -2015,7 +2133,7 @@ export default function DokumenRkkSpkPage() {
                   <label className="block text-slate-300 font-bold mb-1">Nama Asesor Kredensial:</label>
                   <input
                     type="text"
-                    value={editingRkk.namaAsesor || ''}
+                    value={editingRkk.namaAsesor ?? ''}
                     onChange={(e) => setEditingRkk({ ...editingRkk, namaAsesor: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
                   />
@@ -2025,7 +2143,7 @@ export default function DokumenRkkSpkPage() {
                   <label className="block text-slate-300 font-bold mb-1">NIP Asesor (Opsional):</label>
                   <input
                     type="text"
-                    value={editingRkk.nipAsesor || ''}
+                    value={editingRkk.nipAsesor ?? ''}
                     onChange={(e) => setEditingRkk({ ...editingRkk, nipAsesor: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
                   />
@@ -2037,9 +2155,29 @@ export default function DokumenRkkSpkPage() {
                       <label className="block text-slate-300 font-bold mb-1">Nomor Surat Keputusan SPK:</label>
                       <input
                         type="text"
-                        value={editingSpk.nomorSurat}
+                        value={editingSpk.nomorSurat ?? ''}
                         onChange={(e) => setEditingSpk({ ...editingSpk, nomorSurat: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Tanggal Penetapan SPK:</label>
+                      <input
+                        type="text"
+                        value={editingSpk.tanggalDitetapkan ?? ''}
+                        onChange={(e) => setEditingSpk({ ...editingSpk, tanggalDitetapkan: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Masa Berlaku SPK:</label>
+                      <input
+                        type="text"
+                        value={editingSpk.masaBerlakuTahun ?? '3 (tiga) tahun'}
+                        onChange={(e) => setEditingSpk({ ...editingSpk, masaBerlakuTahun: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
                       />
                     </div>
 
@@ -2047,7 +2185,7 @@ export default function DokumenRkkSpkPage() {
                       <label className="block text-slate-300 font-bold mb-1">Nama Direktur RSUD OKU Timur:</label>
                       <input
                         type="text"
-                        value={editingSpk.namaDirektur || bulkNamaDirektur}
+                        value={editingSpk.namaDirektur ?? ''}
                         onChange={(e) => setEditingSpk({ ...editingSpk, namaDirektur: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-bold"
                       />
@@ -2057,7 +2195,7 @@ export default function DokumenRkkSpkPage() {
                       <label className="block text-slate-300 font-bold mb-1">Pangkat / Golongan Direktur:</label>
                       <input
                         type="text"
-                        value={editingSpk.pangkatDirektur || bulkPangkatDirektur}
+                        value={editingSpk.pangkatDirektur ?? ''}
                         onChange={(e) => setEditingSpk({ ...editingSpk, pangkatDirektur: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
                       />
@@ -2067,7 +2205,7 @@ export default function DokumenRkkSpkPage() {
                       <label className="block text-slate-300 font-bold mb-1">NIP Direktur:</label>
                       <input
                         type="text"
-                        value={editingSpk.nipDirektur || bulkNipDirektur}
+                        value={editingSpk.nipDirektur ?? ''}
                         onChange={(e) => setEditingSpk({ ...editingSpk, nipDirektur: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
                       />
@@ -2077,7 +2215,7 @@ export default function DokumenRkkSpkPage() {
                       <label className="block text-slate-300 font-bold mb-1">Tempat Ditetapkan:</label>
                       <input
                         type="text"
-                        value={editingSpk.tempatDitetapkan || 'TULUS AYU'}
+                        value={editingSpk.tempatDitetapkan ?? ''}
                         onChange={(e) => setEditingSpk({ ...editingSpk, tempatDitetapkan: e.target.value })}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500"
                       />
@@ -2131,7 +2269,7 @@ export default function DokumenRkkSpkPage() {
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
-                  <table className="w-full text-left text-xs min-w-[650px]">
+                  <table className="w-full text-left text-xs min-w-[700px]">
                     <thead className="bg-slate-900 text-slate-300 font-bold uppercase text-[10px] border-b border-slate-800">
                       <tr>
                         <th rowSpan={2} className="px-3 py-2 w-8 text-center">
@@ -2149,6 +2287,9 @@ export default function DokumenRkkSpkPage() {
                         <th rowSpan={2} className="px-2 py-2 w-24 text-center border-l border-slate-800">
                           KET
                         </th>
+                        <th rowSpan={2} className="px-2 py-2 w-10 text-center border-l border-slate-800">
+                          Hapus
+                        </th>
                       </tr>
                       <tr className="bg-slate-900 text-slate-400 text-[9px]">
                         <th className="px-1 py-1 text-center w-10 border-l border-slate-800">M</th>
@@ -2159,9 +2300,22 @@ export default function DokumenRkkSpkPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-800 text-slate-200">
                       {editingRkk.checklistData.map((row, idx) => (
-                        <tr key={row.no} className="hover:bg-slate-900/40">
-                          <td className="px-3 py-2 text-center text-slate-400">{row.no}</td>
-                          <td className="px-3 py-2 font-medium">{row.kompetensi}</td>
+                        <tr key={idx} className="hover:bg-slate-900/40">
+                          <td className="px-3 py-2 text-center text-slate-400 font-mono">{idx + 1}</td>
+                          <td className="px-2 py-1.5 font-medium">
+                            <input
+                              type="text"
+                              value={row.kompetensi}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const updated = editingRkk.checklistData.map((r, i) =>
+                                  i === idx ? { ...r, kompetensi: val } : r
+                                );
+                                setEditingRkk({ ...editingRkk, checklistData: updated });
+                              }}
+                              className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-100 text-xs focus:outline-none focus:border-amber-500"
+                            />
+                          </td>
 
                           <td className="px-2 py-2 text-center border-l border-slate-800">
                             <input
@@ -2237,10 +2391,46 @@ export default function DokumenRkkSpkPage() {
                               className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-center text-[10px]"
                             />
                           </td>
+
+                          <td className="px-2 py-2 text-center border-l border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteEditCompetencyRow(idx)}
+                              title="Hapus butir kompetensi"
+                              className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Add new competency row in Edit modal */}
+                <div className="flex gap-2 items-center pt-1">
+                  <input
+                    type="text"
+                    placeholder="+ Tambah Butir Kewenangan Klinis Baru..."
+                    value={editNewCompetencyText}
+                    onChange={(e) => setEditNewCompetencyText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddEditCompetencyRow();
+                      }
+                    }}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddEditCompetencyRow}
+                    className="px-3 py-2 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Butir</span>
+                  </button>
                 </div>
 
                 {/* Live Kesimpulan Preview in Edit Modal */}
