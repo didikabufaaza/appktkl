@@ -55,14 +55,24 @@ export default function DokumenRkkSpkPage() {
   // Bulk Download/Print Modal State per Profession
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
+  // Bulk Selection for Tab 1 (Daftar Dokumen)
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+
   // Filters for Tab 1 (Daftar)
   const [searchQuery, setSearchQuery] = useState('');
   const [filterProfesi, setFilterProfesi] = useState('ALL');
+
+  // Master professions list loaded from server
+  const [masterProfessions, setMasterProfessions] = useState<string[]>([]);
 
   // ==========================================
   // Form States for Bulk Generator (Tab 2)
   // ==========================================
   const [bulkProfesi, setBulkProfesi] = useState('ATLM');
+  const [bulkProfesiSearchTerm, setBulkProfesiSearchTerm] = useState('');
+  const [isBulkProfesiDropdownOpen, setIsBulkProfesiDropdownOpen] = useState(false);
+  const bulkProfesiDropdownRef = useRef<HTMLDivElement>(null);
+
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [bulkChecklist, setBulkChecklist] = useState<RkkChecklistRow[]>([]);
   const [bulkTanggal, setBulkTanggal] = useState(
@@ -84,6 +94,10 @@ export default function DokumenRkkSpkPage() {
   const [singleNama, setSingleNama] = useState('');
   const [singleNip, setSingleNip] = useState('');
   const [singleProfesi, setSingleProfesi] = useState('ATLM');
+  const [singleProfesiSearchTerm, setSingleProfesiSearchTerm] = useState('');
+  const [isSingleProfesiDropdownOpen, setIsSingleProfesiDropdownOpen] = useState(false);
+  const singleProfesiDropdownRef = useRef<HTMLDivElement>(null);
+
   const [singleKualifikasi, setSingleKualifikasi] = useState('');
   const [singleAlumni, setSingleAlumni] = useState('');
   const [singleGelar, setSingleGelar] = useState('');
@@ -97,6 +111,10 @@ export default function DokumenRkkSpkPage() {
   );
   const [customProfesiInput, setCustomProfesiInput] = useState('');
   const [newCompetencyItemText, setNewCompetencyItemText] = useState('');
+
+  // Edit Single Competency Item Modal States for Tab 3
+  const [editingSingleRowIdx, setEditingSingleRowIdx] = useState<number | null>(null);
+  const [editingSingleRowText, setEditingSingleRowText] = useState('');
 
   // Searchable Member Picker States for Tab 3
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
@@ -113,16 +131,24 @@ export default function DokumenRkkSpkPage() {
     setLoading(true);
     try {
       // 1. Fetch server data
-      const [membersRes, rkkRes, spkRes, kopRes, authRes] = await Promise.all([
+      const [membersRes, rkkRes, spkRes, kopRes, authRes, masterProfRes] = await Promise.all([
         fetch('/api/anggota?t=' + Date.now()).then((r) => r.json()).catch(() => null),
         fetch('/api/rkk?t=' + Date.now()).then((r) => r.json()).catch(() => null),
         fetch('/api/spk?t=' + Date.now()).then((r) => r.json()).catch(() => null),
         fetch('/api/master/kop-surat?t=' + Date.now()).then((r) => r.json()).catch(() => null),
         fetch('/api/auth/me').then((r) => r.json()).catch(() => null),
+        fetch('/api/master?type=profesi&t=' + Date.now()).then((r) => r.json()).catch(() => null),
       ]);
 
       if (membersRes?.success && membersRes.data) setMembers(membersRes.data);
       if (authRes?.success && authRes.user) setUserSession(authRes.user);
+      if (masterProfRes?.success && Array.isArray(masterProfRes.data)) {
+        setMasterProfessions(
+          masterProfRes.data
+            .map((p: any) => String(p.nama || '').trim().toUpperCase())
+            .filter(Boolean)
+        );
+      }
 
       // Kop Surat: merge server response and localStorage
       const localKopRaw = typeof window !== 'undefined' ? localStorage.getItem('appktkl_kop_surat') : null;
@@ -221,11 +247,18 @@ export default function DokumenRkkSpkPage() {
     loadAllData();
   }, []);
 
-  // Close member dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (memberDropdownRef.current && !memberDropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (memberDropdownRef.current && !memberDropdownRef.current.contains(target)) {
         setIsMemberDropdownOpen(false);
+      }
+      if (bulkProfesiDropdownRef.current && !bulkProfesiDropdownRef.current.contains(target)) {
+        setIsBulkProfesiDropdownOpen(false);
+      }
+      if (singleProfesiDropdownRef.current && !singleProfesiDropdownRef.current.contains(target)) {
+        setIsSingleProfesiDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -256,17 +289,63 @@ export default function DokumenRkkSpkPage() {
     setSelectedMemberIds(matching.map((m) => m.id));
   }, [bulkProfesi, members]);
 
-  // List of all distinct professions available in the app (both predefined & registered)
+  // List of all distinct professions available across the entire database
+  // (predefined standard map, members table, master table, and existing RKK/SPK)
   const availableProfessionsList = useMemo(() => {
     const set = new Set<string>();
-    Object.keys(RKK_COMPETENCY_MAP).forEach((k) => set.add(k));
+    // 1. Predefined competency maps
+    Object.keys(RKK_COMPETENCY_MAP).forEach((k) => set.add(k.trim().toUpperCase()));
+    // 2. All registered members
     members.forEach((m) => {
       if (m.profesi && m.profesi.trim()) {
         set.add(m.profesi.trim().toUpperCase());
       }
     });
-    return Array.from(set).sort();
-  }, [members]);
+    // 3. Existing RKK documents
+    rkkList.forEach((r) => {
+      if (r.profesi && r.profesi.trim()) {
+        set.add(r.profesi.trim().toUpperCase());
+      }
+    });
+    // 4. Existing SPK documents
+    spkList.forEach((s) => {
+      if (s.profesi && s.profesi.trim()) {
+        set.add(s.profesi.trim().toUpperCase());
+      }
+    });
+    // 5. Master professions from database
+    masterProfessions.forEach((p) => {
+      if (p && p.trim()) {
+        set.add(p.trim().toUpperCase());
+      }
+    });
+
+    return Array.from(set)
+      .filter(Boolean)
+      .sort()
+      .map((code) => ({
+        code,
+        label: RKK_COMPETENCY_MAP[code]?.label || code,
+      }));
+  }, [members, rkkList, spkList, masterProfessions]);
+
+  // Candidate professions filtered by search term for Tab 2 (Pengisian Ceklis Masal)
+  const candidateProfessionsForBulk = useMemo(() => {
+    if (!bulkProfesiSearchTerm.trim()) return availableProfessionsList;
+    const q = bulkProfesiSearchTerm.toLowerCase();
+    return availableProfessionsList.filter(
+      (p) => p.label.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    );
+  }, [availableProfessionsList, bulkProfesiSearchTerm]);
+
+  // Candidate professions filtered by search term for Tab 3 (Tambah RKK Baru)
+  const candidateProfessionsForSingle = useMemo(() => {
+    if (!singleProfesiSearchTerm.trim()) return availableProfessionsList;
+    const q = singleProfesiSearchTerm.toLowerCase();
+    return availableProfessionsList.filter(
+      (p) => p.label.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    );
+  }, [availableProfessionsList, singleProfesiSearchTerm]);
 
   // Update single checklist when single profession changes
   useEffect(() => {
@@ -343,7 +422,9 @@ export default function DokumenRkkSpkPage() {
     setSingleMemberId(m.id);
     setSingleNama(m.namaLengkap);
     setSingleNip(m.nip || m.nomorAnggota || '');
-    setSingleProfesi(m.profesi || 'ATLM');
+    const prof = (m.profesi || 'ATLM').trim();
+    setSingleProfesi(prof);
+    setSingleProfesiSearchTerm(RKK_COMPETENCY_MAP[prof]?.label || prof);
     setSingleKualifikasi(m.pendidikan || '');
     setSingleAlumni(m.asalPendidikan || '');
     setSinglePelayanan(m.profesi || '');
@@ -734,7 +815,88 @@ export default function DokumenRkkSpkPage() {
         fetch(`/api/spk?id=${encodeURIComponent(spkId)}`, { method: 'DELETE' }).catch(() => {});
       }
 
+      // Also remove from selection if selected
+      setSelectedDocIds((prev) => prev.filter((id) => id !== rkkId));
+
       toast.success('Dokumen RKK & SPK berhasil dihapus.');
+    } catch (e) {
+      toast.error('Gagal menghapus dokumen.');
+    }
+  };
+
+  // Toggle selection for a single document
+  const handleToggleSelectDoc = (id: string) => {
+    setSelectedDocIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Toggle selection for all currently filtered documents
+  const handleToggleSelectAll = () => {
+    const displayedIds = filteredRkkList.map((r) => r.id);
+    const allSelected =
+      displayedIds.length > 0 && displayedIds.every((id) => selectedDocIds.includes(id));
+    if (allSelected) {
+      setSelectedDocIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
+    } else {
+      setSelectedDocIds((prev) => Array.from(new Set([...prev, ...displayedIds])));
+    }
+  };
+
+  // Delete Selected Documents in Bulk (Both RKK, RKK Rekomendasi, and SPK)
+  const handleDeleteBulkDocuments = async () => {
+    if (selectedDocIds.length === 0) return;
+    if (
+      !confirm(
+        `Yakin ingin menghapus ${selectedDocIds.length} data dokumen RKK, RKK REKOMENDASI DAN SPK yang dipilih secara masal?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const idsToDelete = new Set(selectedDocIds);
+      const newRkkList = rkkList.filter((r) => !idsToDelete.has(r.id));
+      const newSpkList = spkList.filter(
+        (s) => !idsToDelete.has(s.id) && (!s.rkkId || !idsToDelete.has(s.rkkId))
+      );
+      setRkkList(newRkkList);
+      setSpkList(newSpkList);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('appktkl_rkk_cache', JSON.stringify(newRkkList));
+        localStorage.setItem('appktkl_spk_cache', JSON.stringify(newSpkList));
+
+        const deletedRaw = localStorage.getItem('appktkl_deleted_rkk');
+        const deletedArr: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+        selectedDocIds.forEach((id) => {
+          deletedArr.push(id);
+          const matched = spkList.find((s) => s.rkkId === id || s.id === id);
+          if (matched && !deletedArr.includes(matched.id)) {
+            deletedArr.push(matched.id);
+          }
+        });
+        localStorage.setItem('appktkl_deleted_rkk', JSON.stringify(deletedArr));
+      }
+
+      await Promise.all(
+        selectedDocIds.map(async (rkkId) => {
+          const matched = spkList.find((s) => s.rkkId === rkkId || s.id === rkkId);
+          await fetch(`/api/rkk?id=${encodeURIComponent(rkkId)}`, { method: 'DELETE' }).catch(
+            () => {}
+          );
+          if (matched) {
+            await fetch(`/api/spk?id=${encodeURIComponent(matched.id)}`, {
+              method: 'DELETE',
+            }).catch(() => {});
+          }
+        })
+      );
+
+      toast.success(
+        `${selectedDocIds.length} dokumen RKK, RKK Rekomendasi & SPK berhasil dihapus secara masal.`
+      );
+      setSelectedDocIds([]);
     } catch (e) {
       toast.error('Gagal menghapus dokumen.');
     }
@@ -874,20 +1036,45 @@ export default function DokumenRkkSpkPage() {
                   <option value="ALL" className="bg-slate-900">
                     Semua Profesi ({rkkList.length})
                   </option>
-                  {availableProfessionsList.map((k) => {
+                  {availableProfessionsList.map(({ code, label }) => {
                     const count = rkkList.filter((r) => {
                       const p1 = (r.profesi || '').toUpperCase().trim();
-                      const p2 = k.toUpperCase().trim();
+                      const p2 = code.toUpperCase().trim();
                       return p1.includes(p2) || p2.includes(p1);
                     }).length;
                     return (
-                      <option key={k} value={k} className="bg-slate-900">
-                        {RKK_COMPETENCY_MAP[k]?.label || k} {count > 0 ? `(${count})` : ''}
+                      <option key={code} value={code} className="bg-slate-900">
+                        {label} {count > 0 ? `(${count})` : ''}
                       </option>
                     );
                   })}
                 </select>
               </div>
+
+              {/* Bulk Delete Button when items are checked */}
+              {selectedDocIds.length > 0 && userSession?.role !== 'user' && (
+                <div className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl">
+                  <span className="text-xs text-rose-300 font-bold whitespace-nowrap">
+                    {selectedDocIds.length} dipilih
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDeleteBulkDocuments}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-md shadow-rose-600/30 transition shrink-0"
+                    title="Hapus masal dokumen RKK, RKK Rekomendasi & SPK terpilih"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Terpilih ({selectedDocIds.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDocIds([])}
+                    className="text-[11px] text-slate-400 hover:text-slate-200 underline ml-1 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                </div>
+              )}
 
               {/* Tombol Cetak / Unduh Masal Dokumen per Profesi */}
               <button
@@ -925,6 +1112,28 @@ export default function DokumenRkkSpkPage() {
               <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className="bg-slate-950 text-slate-300 font-bold uppercase text-[11px] border-b border-slate-800">
                   <tr>
+                    {userSession?.role !== 'user' && (
+                      <th className="px-3 py-3.5 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            filteredRkkList.length > 0 &&
+                            filteredRkkList.every((r) => selectedDocIds.includes(r.id))
+                          }
+                          ref={(el) => {
+                            if (el) {
+                              const count = filteredRkkList.filter((r) =>
+                                selectedDocIds.includes(r.id)
+                              ).length;
+                              el.indeterminate = count > 0 && count < filteredRkkList.length;
+                            }
+                          }}
+                          onChange={handleToggleSelectAll}
+                          className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                          title="Pilih Semua Dokumen"
+                        />
+                      </th>
+                    )}
                     <th className="px-4 py-3.5 w-10">No</th>
                     <th className="px-4 py-3.5">Nama Anggota & NIP</th>
                     <th className="px-4 py-3.5">Profesi</th>
@@ -937,9 +1146,12 @@ export default function DokumenRkkSpkPage() {
                 <tbody className="divide-y divide-slate-800/80 text-slate-200">
                   {filteredRkkList.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-slate-500 italic">
+                      <td
+                        colSpan={userSession?.role !== 'user' ? 8 : 7}
+                        className="text-center py-12 text-slate-500 italic"
+                      >
                         Belum ada dokumen RKK yang dibuat. Silakan gunakan tab &quot;Pengisian Ceklis Masal&quot; atau
-                        &quot;Buat Individual&quot;.
+                        &quot;Tambah RKK Baru&quot;.
                       </td>
                     </tr>
                   ) : (
@@ -948,8 +1160,26 @@ export default function DokumenRkkSpkPage() {
                         spkList.find((s) => s.rkkId === r.id || (s.memberId && s.memberId === r.memberId)) ||
                         spkList.find((s) => s.nama.toLowerCase() === r.nama.toLowerCase());
 
+                      const isDocSelected = selectedDocIds.includes(r.id);
+
                       return (
-                        <tr key={r.id} className="hover:bg-slate-800/40 transition">
+                        <tr
+                          key={r.id}
+                          className={`transition ${
+                            isDocSelected ? 'bg-emerald-500/15' : 'hover:bg-slate-800/40'
+                          }`}
+                        >
+                          {userSession?.role !== 'user' && (
+                            <td className="px-3 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isDocSelected}
+                                onChange={() => handleToggleSelectDoc(r.id)}
+                                className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                                title={`Pilih dokumen ${r.nama}`}
+                              />
+                            </td>
+                          )}
                           <td className="px-4 py-3 text-slate-400">{idx + 1}</td>
                           <td className="px-4 py-3">
                             <div className="font-bold text-slate-100">{r.nama}</div>
@@ -1094,13 +1324,33 @@ export default function DokumenRkkSpkPage() {
                   spkList.find((s) => s.rkkId === r.id || (s.memberId && s.memberId === r.memberId)) ||
                   spkList.find((s) => s.nama.toLowerCase() === r.nama.toLowerCase());
 
+                const isDocSelected = selectedDocIds.includes(r.id);
+
                 return (
-                  <div key={r.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
+                  <div
+                    key={r.id}
+                    className={`border rounded-2xl p-4 space-y-3 shadow-sm transition ${
+                      isDocSelected
+                        ? 'bg-slate-900 border-emerald-500/50 ring-1 ring-emerald-500/30'
+                        : 'bg-slate-900 border-slate-800'
+                    }`}
+                  >
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[10px] font-mono text-slate-400">#{idx + 1}</span>
-                        <h3 className="font-bold text-slate-100 text-sm">{r.nama}</h3>
-                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">NIP: {r.nip || '-'}</p>
+                      <div className="flex items-start gap-2.5">
+                        {userSession?.role !== 'user' && (
+                          <input
+                            type="checkbox"
+                            checked={isDocSelected}
+                            onChange={() => handleToggleSelectDoc(r.id)}
+                            className="w-4 h-4 accent-emerald-500 rounded cursor-pointer shrink-0 mt-0.5"
+                            title={`Pilih dokumen ${r.nama}`}
+                          />
+                        )}
+                        <div>
+                          <span className="text-[10px] font-mono text-slate-400">#{idx + 1}</span>
+                          <h3 className="font-bold text-slate-100 text-sm">{r.nama}</h3>
+                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">NIP: {r.nip || '-'}</p>
+                        </div>
                       </div>
                       <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
                         {r.profesi}
@@ -1242,20 +1492,87 @@ export default function DokumenRkkSpkPage() {
                 </p>
               </div>
 
-              {/* Profession Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-300">Rumpun Profesi:</span>
-                <select
-                  value={bulkProfesi}
-                  onChange={(e) => setBulkProfesi(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
-                >
-                  {Object.keys(RKK_COMPETENCY_MAP).map((key) => (
-                    <option key={key} value={key} className="bg-slate-900 text-slate-200">
-                      {RKK_COMPETENCY_MAP[key].label}
-                    </option>
-                  ))}
-                </select>
+              {/* Profession Selector (Searchable with typing) */}
+              <div className="relative w-full sm:w-80" ref={bulkProfesiDropdownRef}>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Rumpun Profesi (Ketik untuk Mencari):
+                </label>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={
+                      isBulkProfesiDropdownOpen
+                        ? bulkProfesiSearchTerm
+                        : RKK_COMPETENCY_MAP[bulkProfesi]?.label || bulkProfesi
+                    }
+                    onFocus={() => {
+                      setBulkProfesiSearchTerm('');
+                      setIsBulkProfesiDropdownOpen(true);
+                    }}
+                    onChange={(e) => {
+                      setBulkProfesiSearchTerm(e.target.value);
+                      setIsBulkProfesiDropdownOpen(true);
+                    }}
+                    placeholder="Ketik profesi untuk mencari..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-8 py-2 text-xs font-bold text-emerald-400 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+
+                {isBulkProfesiDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-950 border border-slate-800 rounded-xl max-h-60 overflow-y-auto shadow-2xl divide-y divide-slate-800/60">
+                    {candidateProfessionsForBulk.length === 0 ? (
+                      <div className="p-3 text-xs text-slate-400 space-y-2">
+                        <p className="italic">
+                          Tidak ditemukan profesi yang cocok dengan &quot;{bulkProfesiSearchTerm}&quot;
+                        </p>
+                        {bulkProfesiSearchTerm.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const custom = bulkProfesiSearchTerm.trim().toUpperCase();
+                              setBulkProfesi(custom);
+                              setIsBulkProfesiDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold text-xs transition"
+                          >
+                            + Gunakan &quot;{bulkProfesiSearchTerm.trim().toUpperCase()}&quot; sebagai Profesi
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      candidateProfessionsForBulk.map((p) => {
+                        const isSelected = bulkProfesi.toUpperCase() === p.code.toUpperCase();
+                        return (
+                          <div
+                            key={p.code}
+                            onClick={() => {
+                              setBulkProfesi(p.code);
+                              setBulkProfesiSearchTerm(p.label);
+                              setIsBulkProfesiDropdownOpen(false);
+                            }}
+                            className={`px-3 py-2.5 hover:bg-slate-800/80 cursor-pointer transition flex items-center justify-between text-xs ${
+                              isSelected ? 'bg-emerald-500/15 text-emerald-300 font-bold' : 'text-slate-200'
+                            }`}
+                          >
+                            <div>
+                              <span className="font-semibold">{p.label}</span>
+                              {p.code !== p.label && (
+                                <span className="text-[10px] text-slate-400 ml-1.5 font-mono">
+                                  ({p.code})
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1688,40 +2005,112 @@ export default function DokumenRkkSpkPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-slate-300 font-bold mb-1.5">Rumpun Profesi:</label>
-              <select
-                value={singleProfesi}
-                onChange={(e) => {
-                  setSingleProfesi(e.target.value);
-                  if (e.target.value !== 'LAINNYA') {
-                    setCustomProfesiInput('');
-                  }
-                }}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
-              >
-                <optgroup label="Standar RKK Profesi (RSUD OKU Timur)">
-                  {Object.keys(RKK_COMPETENCY_MAP).map((k) => (
-                    <option key={k} value={k}>
-                      {RKK_COMPETENCY_MAP[k].label}
-                    </option>
-                  ))}
-                </optgroup>
-                {availableProfessionsList.filter((p) => !RKK_COMPETENCY_MAP[p]).length > 0 && (
-                  <optgroup label="Profesi Anggota Lainnya">
-                    {availableProfessionsList
-                      .filter((p) => !RKK_COMPETENCY_MAP[p])
-                      .map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                  </optgroup>
+            {/* Searchable Combobox for Tab 3 Profession */}
+            <div className="relative" ref={singleProfesiDropdownRef}>
+              <label className="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
+                <span>Rumpun Profesi (Ketik untuk Mencari):</span>
+                {singleProfesi && (
+                  <span className="text-[10px] text-emerald-400 font-mono">
+                    {singleProfesi}
+                  </span>
                 )}
-                <option value="LAINNYA" className="text-amber-400 font-bold">
-                  + Profesi Lainnya (Ketik Manual)...
-                </option>
-              </select>
+              </label>
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={
+                    isSingleProfesiDropdownOpen
+                      ? singleProfesiSearchTerm
+                      : RKK_COMPETENCY_MAP[singleProfesi]?.label || singleProfesi
+                  }
+                  onFocus={() => {
+                    setSingleProfesiSearchTerm('');
+                    setIsSingleProfesiDropdownOpen(true);
+                  }}
+                  onChange={(e) => {
+                    setSingleProfesiSearchTerm(e.target.value);
+                    setIsSingleProfesiDropdownOpen(true);
+                  }}
+                  placeholder="Ketik nama profesi untuk mencari..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-9 py-2.5 text-emerald-400 font-bold text-xs focus:outline-none focus:border-emerald-500"
+                />
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {isSingleProfesiDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-slate-950 border border-slate-800 rounded-xl max-h-60 overflow-y-auto shadow-2xl divide-y divide-slate-800/60">
+                  {candidateProfessionsForSingle.length === 0 ? (
+                    <div className="p-3 text-xs text-slate-400 space-y-2">
+                      <p className="italic">
+                        Tidak ditemukan profesi yang cocok dengan &quot;{singleProfesiSearchTerm}&quot;
+                      </p>
+                      {singleProfesiSearchTerm.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const custom = singleProfesiSearchTerm.trim().toUpperCase();
+                            setSingleProfesi(custom);
+                            setCustomProfesiInput(custom);
+                            setIsSingleProfesiDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold text-xs transition"
+                        >
+                          + Gunakan &quot;{singleProfesiSearchTerm.trim().toUpperCase()}&quot; sebagai Profesi Baru
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {candidateProfessionsForSingle.map((p) => {
+                        const isSelected = singleProfesi.toUpperCase() === p.code.toUpperCase();
+                        return (
+                          <div
+                            key={p.code}
+                            onClick={() => {
+                              setSingleProfesi(p.code);
+                              setSingleProfesiSearchTerm(p.label);
+                              setCustomProfesiInput('');
+                              setIsSingleProfesiDropdownOpen(false);
+                            }}
+                            className={`p-2.5 hover:bg-slate-800/80 cursor-pointer transition flex items-center justify-between text-xs ${
+                              isSelected ? 'bg-emerald-500/15 text-emerald-300 font-bold' : 'text-slate-200'
+                            }`}
+                          >
+                            <div>
+                              <span className="font-bold">{p.label}</span>
+                              {p.code !== p.label && (
+                                <span className="text-[10px] text-slate-400 ml-1.5 font-mono">
+                                  ({p.code})
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })}
+                      {singleProfesiSearchTerm.trim() &&
+                        !candidateProfessionsForSingle.some(
+                          (p) => p.code.toLowerCase() === singleProfesiSearchTerm.trim().toLowerCase()
+                        ) && (
+                          <div
+                            onClick={() => {
+                              const custom = singleProfesiSearchTerm.trim().toUpperCase();
+                              setSingleProfesi(custom);
+                              setCustomProfesiInput(custom);
+                              setIsSingleProfesiDropdownOpen(false);
+                            }}
+                            className="p-2.5 hover:bg-slate-800/80 cursor-pointer transition text-xs font-bold text-amber-400"
+                          >
+                            + Gunakan &quot;{singleProfesiSearchTerm.trim().toUpperCase()}&quot; sebagai Profesi Baru
+                          </div>
+                        )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {singleProfesi === 'LAINNYA' && (
@@ -1842,7 +2231,7 @@ export default function DokumenRkkSpkPage() {
                     <th rowSpan={2} className="px-3 py-2 w-28 text-center border-l border-slate-800">
                       KET
                     </th>
-                    <th rowSpan={2} className="px-2 py-2 w-10 text-center border-l border-slate-800">
+                    <th rowSpan={2} className="px-2 py-2 w-20 text-center border-l border-slate-800">
                       Aksi
                     </th>
                   </tr>
@@ -1947,14 +2336,27 @@ export default function DokumenRkkSpkPage() {
                       </td>
 
                       <td className="px-2 py-2 text-center border-l border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSingleRow(idx)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
-                          title="Hapus baris kompetensi ini"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSingleRowIdx(idx);
+                              setEditingSingleRowText(row.kompetensi);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition"
+                            title="Edit Rincian Kewenangan Klinis"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleRow(idx)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                            title="Hapus baris kompetensi ini"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2008,6 +2410,89 @@ export default function DokumenRkkSpkPage() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Modal Edit Rincian Kewenangan Klinis untuk Tab Tambah RKK Baru */}
+          {editingSingleRowIdx !== null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <Edit3 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100">
+                        Edit Rincian Kewenangan Klinis
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Butir Kompetensi #{singleChecklist[editingSingleRowIdx]?.no || editingSingleRowIdx + 1}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSingleRowIdx(null);
+                      setEditingSingleRowText('');
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-200 rounded-lg"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Deskripsi Rincian Kewenangan Klinis:
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={editingSingleRowText}
+                    onChange={(e) => setEditingSingleRowText(e.target.value)}
+                    placeholder="Tuliskan rumusan rincian kewenangan klinis..."
+                    autoFocus
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-400 leading-relaxed font-medium"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSingleRowIdx(null);
+                      setEditingSingleRowText('');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!editingSingleRowText.trim()) {
+                        toast.error('Rincian kewenangan klinis tidak boleh kosong.');
+                        return;
+                      }
+                      setSingleChecklist((prev) =>
+                        prev.map((r, i) =>
+                          i === editingSingleRowIdx
+                            ? { ...r, kompetensi: editingSingleRowText.trim() }
+                            : r
+                        )
+                      );
+                      toast.success('Rincian kewenangan klinis berhasil diubah.');
+                      setEditingSingleRowIdx(null);
+                      setEditingSingleRowText('');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Simpan Perubahan</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2062,7 +2547,9 @@ export default function DokumenRkkSpkPage() {
                   <div className="flex gap-2">
                     <select
                       value={
-                        availableProfessionsList.includes((editingRkk.profesi || '').toUpperCase().trim())
+                        availableProfessionsList.some(
+                          (p) => p.code === (editingRkk.profesi || '').toUpperCase().trim()
+                        )
                           ? (editingRkk.profesi || '').toUpperCase().trim()
                           : 'LAINNYA'
                       }
@@ -2082,9 +2569,9 @@ export default function DokumenRkkSpkPage() {
                       }}
                       className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-emerald-400 font-bold focus:outline-none focus:border-amber-500"
                     >
-                      {availableProfessionsList.map((k) => (
-                        <option key={k} value={k}>
-                          {RKK_COMPETENCY_MAP[k]?.label || k}
+                      {availableProfessionsList.map(({ code, label }) => (
+                        <option key={code} value={code}>
+                          {label}
                         </option>
                       ))}
                       <option value="LAINNYA">+ Ketik Profesi Manual...</option>

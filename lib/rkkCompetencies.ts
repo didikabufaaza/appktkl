@@ -1,4 +1,4 @@
-﻿export interface RkkCompetencyItem {
+export interface RkkCompetencyItem {
   no: number;
   kompetensi: string;
 }
@@ -163,12 +163,24 @@ export const RKK_COMPETENCY_MAP: Record<string, { label: string; competencies: s
       'Melakukan monitoring kepatuhan standar keselamatan kerja dan kesehatan kerja (K3RS)',
     ],
   },
+  ELEKTROMEDIS: {
+    label: 'Elektromedis (Teknisi Elektromedik)',
+    competencies: [
+      'Melakukan pemeliharaan preventif peralatan elektromedik berkala',
+      'Melakukan kalibrasi internal dan uji fungsi kinerja alat elektromedik',
+      'Melakukan penanganan perbaikan (troubleshooting) kerusakan peralatan medis',
+      'Melakukan uji keselamatan listrik dan proteksi radiasi peralatan elektromedik',
+      'Melakukan penerimaan, uji fungsi, dan instalasi alat kesehatan baru',
+      'Menyusun pencatatan inventarisasi, riwayat pemeliharaan, dan suku cadang alat',
+      'Melakukan edukasi teknis pengoperasian alat kepada operator/nakes pengguna',
+    ],
+  },
 };
 
 export function getCompetenciesByProfesi(rawProfesi?: string): { label: string; items: RkkCompetencyItem[] } {
   const norm = String(rawProfesi || '').toUpperCase().trim();
 
-  let matchKey = 'ATLM';
+  let matchKey: string | null = null;
 
   if (norm.includes('APOTEKER') && !norm.includes('ASISTEN')) {
     matchKey = 'APOTEKER';
@@ -194,14 +206,56 @@ export function getCompetenciesByProfesi(rawProfesi?: string): { label: string; 
     matchKey = 'FISIKAWAN MEDIK';
   } else if (norm.includes('SKM') || norm.includes('MASYARAKAT')) {
     matchKey = 'SKM';
+  } else if (norm.includes('ELEKTRO') || norm.includes('TEM')) {
+    matchKey = 'ELEKTROMEDIS';
+  } else if (RKK_COMPETENCY_MAP[norm]) {
+    matchKey = norm;
   }
 
-  const def = RKK_COMPETENCY_MAP[matchKey] || RKK_COMPETENCY_MAP['ATLM'];
+  if (matchKey && RKK_COMPETENCY_MAP[matchKey]) {
+    const def = RKK_COMPETENCY_MAP[matchKey];
+    return {
+      label: def.label,
+      items: def.competencies.map((text, idx) => ({
+        no: idx + 1,
+        kompetensi: text,
+      })),
+    };
+  }
+
+  // If specific profession is not directly matched in standard map, generate professional universal competencies
+  const professionTitle = rawProfesi && rawProfesi.trim() ? rawProfesi.trim() : 'Tenaga Kesehatan';
   return {
-    label: def.label,
-    items: def.competencies.map((text, idx) => ({
-      no: idx + 1,
-      kompetensi: text,
-    })),
+    label: professionTitle,
+    items: [
+      {
+        no: 1,
+        kompetensi: `Melakukan asesmen dan pengkajian pelayanan ${professionTitle} sesuai standar profesi dan SPO`,
+      },
+      {
+        no: 2,
+        kompetensi: `Merencanakan dan mempersiapkan sarana, prasarana, serta peralatan pendukung pelayanan ${professionTitle}`,
+      },
+      {
+        no: 3,
+        kompetensi: `Melaksanakan tindakan dan intervensi pelayanan klinis ${professionTitle} secara aman dan profesional`,
+      },
+      {
+        no: 4,
+        kompetensi: `Melakukan evaluasi hasil pelayanan, pemantauan klinis, dan tindak lanjut penanganan`,
+      },
+      {
+        no: 5,
+        kompetensi: `Melakukan pencatatan, dokumentasi, dan pelaporan pelayanan rekam medis secara akurat dan tepat waktu`,
+      },
+      {
+        no: 6,
+        kompetensi: `Melakukan komunikasi efektif, edukasi, dan konseling kesehatan kepada pasien dan keluarga`,
+      },
+      {
+        no: 7,
+        kompetensi: `Menerapkan Sasaran Keselamatan Pasien (Patient Safety) dan Pencegahan Pengendalian Infeksi (PPI)`,
+      },
+    ],
   };
 }
